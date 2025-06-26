@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "pychangeset"
+name = "changeset"
 version = "0.1.0"
 description = "Changeset management tool for Python projects"
 readme = "README.md"
@@ -17,10 +17,13 @@ dependencies = [
 ]
 
 [project.scripts]
-changeset = "pychangeset.changeset:main"
-pychangeset = "pychangeset.changeset:main"
-pychangeset-version = "pychangeset.version:main"
-pychangeset-changelog = "pychangeset.changelog:main"
+changeset = "changeset.changeset:main"
+pychangeset = "changeset.changeset:main"
+pychangeset-version = "changeset.version:main"
+pychangeset-changelog = "changeset.changelog:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["changeset"]
 
 [tool.uv]
 dev-dependencies = []
