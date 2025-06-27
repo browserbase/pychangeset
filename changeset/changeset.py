@@ -465,6 +465,27 @@ def cli():
 
 
 @cli.command()
+@click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
+@click.option("--output-pr-description", help="File to write PR description to")
+def changelog(dry_run: bool, output_pr_description: str):
+    """Generate changelogs from changesets."""
+    from changeset.changelog import main as changelog_main
+    
+    # Pass through to the changelog module
+    import sys
+    original_argv = sys.argv
+    try:
+        sys.argv = ["changelog"]
+        if dry_run:
+            sys.argv.append("--dry-run")
+        if output_pr_description:
+            sys.argv.extend(["--output-pr-description", output_pr_description])
+        changelog_main()
+    finally:
+        sys.argv = original_argv
+
+
+@cli.command()
 def init():
     """Initialize changesets in your project."""
     console.print("🚀 Initializing changesets...", style="cyan bold")

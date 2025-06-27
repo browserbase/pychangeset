@@ -1,212 +1,150 @@
 #!/usr/bin/env python3
 """
-Changelog generation script - Generates changelog from changesets.
+Changelog generation integrated with version bumping.
+Generates changelogs with PR metadata and creates PR descriptions.
 """
 
 import json
 import os
 import re
 import subprocess
-import sys
-import tomllib
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
 
 import click
+import toml
+import tomllib
 
+# Import from changeset.py to reuse logic
+from changeset.changeset import (
+    determine_version_bump,
+    bump_version,
+    find_project_pyproject,
+    get_changesets as get_changesets_from_changeset,
+    get_current_version,
+    parse_changeset,
+)
 
 CHANGESET_DIR = Path(".changeset")
 CONFIG_FILE = CHANGESET_DIR / "config.json"
 
 
-def load_config() -> Dict:
+def load_config() -> dict:
     """Load changeset configuration."""
     if not CONFIG_FILE.exists():
         click.echo(click.style("❌ No changeset config found.", fg="red"))
-        sys.exit(1)
-    
+        raise SystemExit(1)
+
     with open(CONFIG_FILE) as f:
         return json.load(f)
 
 
-def parse_changeset(filepath: Path) -> List[Tuple[str, str, str]]:
-    """Parse a changeset file and return list of (package, change_type, description)."""
-    with open(filepath) as f:
-        content = f.read()
+def get_git_info() -> dict:
+    """Get git information for the current commit/PR."""
+    info = {}
     
-    # Parse frontmatter
-    lines = content.strip().split("\n")
-    
-    if lines[0] != "---":
-        raise ValueError(f"Invalid changeset format in {filepath}")
-    
-    # Find end of frontmatter
-    end_idx = None
-    for i, line in enumerate(lines[1:], 1):
-        if line == "---":
-            end_idx = i
-            break
-    
-    if end_idx is None:
-        raise ValueError(f"Invalid changeset format in {filepath}")
-    
-    # Parse packages and change types
-    packages = []
-    for line in lines[1:end_idx]:
-        if line.strip():
-            match = re.match(r'"(.+)":\s*(\w+)', line.strip())
-            if match:
-                package = match.group(1)
-                change_type = match.group(2)
-                packages.append((package, change_type))
-    
-    # Get description (everything after frontmatter)
-    description = "\n".join(lines[end_idx + 1:]).strip()
-    
-    # Return with same description for all packages
-    return [(pkg, ct, description) for pkg, ct in packages]
-
-
-def get_changesets() -> Dict[str, List[Dict]]:
-    """Get all changeset files and parse them, grouped by package."""
-    package_changes = {}
-    
-    for filepath in CHANGESET_DIR.glob("*.md"):
-        if filepath.name == "README.md":
-            continue
-        
-        try:
-            parsed = parse_changeset(filepath)
-            for package, change_type, description in parsed:
-                if package not in package_changes:
-                    package_changes[package] = []
-                package_changes[package].append({
-                    'type': change_type,
-                    'description': description,
-                    'changeset': filepath.name
-                })
-        except Exception as e:
-            click.echo(click.style(f"⚠️  Error parsing {filepath}: {e}", fg="yellow"))
-    
-    return package_changes
-
-
-def find_project_pyproject(package_name: str) -> Optional[Path]:
-    """Find the pyproject.toml for a given package."""
-    # Search for pyproject.toml files
-    for pyproject_path in Path(".").rglob("pyproject.toml"):
-        # Skip hidden directories
-        if any(part.startswith('.') for part in pyproject_path.parts[:-1]):
-            continue
-            
-        try:
-            with open(pyproject_path, 'rb') as f:
-                data = tomllib.load(f)
-                if data.get('project', {}).get('name') == package_name:
-                    return pyproject_path
-        except Exception:
-            continue
-    
-    return None
-
-
-def get_current_version(pyproject_path: Path) -> str:
-    """Get current version from pyproject.toml."""
-    with open(pyproject_path, 'rb') as f:
-        data = tomllib.load(f)
-    
-    return data.get('project', {}).get('version', '0.0.0')
-
-
-def get_pr_info() -> Optional[Dict[str, str]]:
-    """Get PR information if available."""
+    # Get the current commit hash
     try:
-        # Try to get PR info from GitHub context (in Actions)
-        pr_number = os.environ.get("GITHUB_PR_NUMBER")
-        if pr_number:
-            return {
-                "number": pr_number,
-                "url": f"https://github.com/{os.environ.get('GITHUB_REPOSITORY')}/pull/{pr_number}"
-            }
-        
-        # Try to get from git branch name (if it contains PR number)
         result = subprocess.run(
-            ["git", "branch", "--show-current"],
+            ["git", "rev-parse", "HEAD"],
             capture_output=True,
-            text=True
+            text=True,
+            check=True
         )
-        
-        if result.returncode == 0:
-            branch = result.stdout.strip()
-            # Look for patterns like "pr-123" or "pull/123"
-            match = re.search(r'(?:pr|pull)[/-](\d+)', branch, re.IGNORECASE)
-            if match:
-                pr_number = match.group(1)
-                # Try to get repo info
-                repo_result = subprocess.run(
-                    ["git", "remote", "get-url", "origin"],
-                    capture_output=True,
-                    text=True
-                )
-                if repo_result.returncode == 0:
-                    repo_url = repo_result.stdout.strip()
-                    # Extract owner/repo from URL
-                    match = re.search(r'github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$', repo_url)
-                    if match:
-                        repo = match.group(1)
-                        return {
-                            "number": pr_number,
-                            "url": f"https://github.com/{repo}/pull/{pr_number}"
-                        }
-    except Exception:
+        info["commit"] = result.stdout.strip()[:7]  # Short hash
+    except:
+        info["commit"] = None
+    
+    # Get GitHub repo info
+    try:
+        result = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        remote_url = result.stdout.strip()
+        # Extract owner/repo from URL
+        match = re.search(r"github\.com[:/]([^/]+)/([^/]+?)(?:\.git)?$", remote_url)
+        if match:
+            info["owner"] = match.group(1)
+            info["repo"] = match.group(2)
+            info["repo_url"] = f"https://github.com/{info['owner']}/{info['repo']}"
+    except:
         pass
     
-    return None
+    return info
 
 
-def format_changelog_entry(entry: Dict, config: Dict) -> str:
-    """Format a single changelog entry."""
-    change_type = entry["type"]
+def get_pr_metadata() -> dict:
+    """Get PR metadata from environment or git."""
+    metadata = {
+        "pr_number": os.environ.get("PR_NUMBER"),
+        "pr_author": os.environ.get("PR_AUTHOR"),
+        "commit_hash": os.environ.get("COMMIT_SHA", ""),
+    }
+    
+    # Always get git info for repo URL
+    git_info = get_git_info()
+    
+    # Use git commit if not in environment
+    if not metadata["commit_hash"]:
+        metadata["commit_hash"] = git_info.get("commit", "")
+    
+    # Always use repo URL from git
+    metadata["repo_url"] = git_info.get("repo_url", "")
+    
+    return metadata
+
+
+def format_changelog_entry(
+    entry: dict,
+    config: dict,
+    pr_metadata: dict
+) -> str:
+    """Format a single changelog entry with PR and commit info."""
     description = entry["description"]
+    pr_number = pr_metadata.get("pr_number")
+    pr_author = pr_metadata.get("pr_author")
+    commit_hash = pr_metadata.get("commit_hash", "")[:7]
+    repo_url = pr_metadata.get("repo_url", "")
     
-    # Get emoji if configured
-    emoji = config["changeTypes"].get(change_type, {}).get("emoji", "")
+    # Build the entry
+    parts = []
     
-    # Format entry
-    if emoji:
-        line = f"- {emoji} **{change_type}**: {description}"
-    else:
-        line = f"- **{change_type}**: {description}"
+    # Add PR link if available
+    if pr_number and repo_url:
+        parts.append(f"[#{pr_number}]({repo_url}/pull/{pr_number})")
     
-    return line
+    # Add commit link if available
+    if commit_hash and repo_url:
+        parts.append(f"[`{commit_hash}`]({repo_url}/commit/{commit_hash})")
+    
+    # Add author thanks if available
+    if pr_author:
+        parts.append(f"Thanks @{pr_author}!")
+    
+    # Add description
+    parts.append(f"- {description}")
+    
+    return " ".join(parts)
 
 
-def find_package_changelog(package_name: str, pyproject_path: Path) -> Path:
-    """Find the CHANGELOG.md for a given package."""
-    # Look for CHANGELOG.md in the same directory or parent
-    for candidate in [
-        pyproject_path.parent / "CHANGELOG.md",
-        pyproject_path.parent.parent / "CHANGELOG.md",
-    ]:
-        if candidate.exists():
-            return candidate
-    
-    # If not found, create it in the package directory
-    return pyproject_path.parent / "CHANGELOG.md"
-
-
-def generate_package_section(package: str, version: str, entries: List[Dict], config: Dict, date: str) -> str:
+def generate_changelog_section(
+    package: str,
+    new_version: str,
+    entries: list[dict],
+    config: dict,
+    pr_metadata: dict
+) -> str:
     """Generate changelog section for a package version."""
-    # Start with version header
-    section = f"## [{version}] - {date}\n\n"
+    lines = []
     
-    # Get PR info if available
-    pr_info = get_pr_info()
-    if pr_info:
-        section += f"[View Pull Request]({pr_info['url']})\n\n"
+    # Add version header
+    lines.append(f"## {new_version}")
+    lines.append("")
     
-    # Group entries by type
+    # Group entries by change type
     grouped = {}
     for entry in entries:
         change_type = entry["type"]
@@ -214,130 +152,223 @@ def generate_package_section(package: str, version: str, entries: List[Dict], co
             grouped[change_type] = []
         grouped[change_type].append(entry)
     
-    # Add entries by type (in order: major, minor, patch)
-    type_order = ["major", "minor", "patch"]
+    # Add sections for each change type
+    for change_type in ["major", "minor", "patch"]:
+        if change_type not in grouped:
+            continue
+            
+        # Get the change type label
+        type_label = {
+            "major": "Major Changes",
+            "minor": "Minor Changes",
+            "patch": "Patch Changes"
+        }.get(change_type, f"{change_type.capitalize()} Changes")
+        
+        lines.append(f"### {type_label}")
+        lines.append("")
+        
+        # Add each entry
+        for entry in grouped[change_type]:
+            lines.append(format_changelog_entry(entry, config, pr_metadata))
+        
+        lines.append("")
     
-    for change_type in type_order:
-        if change_type in grouped:
-            type_info = config["changeTypes"].get(change_type, {})
-            type_name = type_info.get("description", change_type.capitalize())
-            
-            section += f"### {type_name}\n\n"
-            
-            for entry in grouped[change_type]:
-                section += format_changelog_entry(entry, config) + "\n"
-            
-            section += "\n"
-    
-    return section.strip() + "\n"
+    return "\n".join(lines).strip()
 
 
-def update_changelog(changelog_path: Path, new_section: str, package: str, version: str):
-    """Update the changelog file with new section."""
+def update_or_create_changelog(
+    changelog_path: Path,
+    package_name: str,
+    new_section: str
+) -> bool:
+    """Update or create a changelog file."""
     if changelog_path.exists():
-        with open(changelog_path) as f:
-            current_content = f.read()
+        content = changelog_path.read_text()
     else:
-        # Create new changelog with header
-        current_content = f"""# Changelog
-
-All notable changes to {package} will be documented in this file.
-
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
-
-"""
+        # Create new changelog with package name header
+        content = f"# {package_name}\n\n"
     
-    # Check if version already exists
-    if f"## [{version}]" in current_content:
-        click.echo(click.style(f"⚠️  Version {version} already exists in {changelog_path}", fg="yellow"))
-        return False
-    
-    # Find where to insert (after the header, before first version)
-    lines = current_content.split("\n")
+    # Insert the new section after the package name header
+    lines = content.split("\n")
     insert_index = None
     
-    # Look for first version entry or end of header
+    # Find where to insert (after header, before first version)
     for i, line in enumerate(lines):
-        if line.startswith("## ["):
-            insert_index = i
+        if line.startswith("# "):
+            # Found header, insert after next blank line
+            for j in range(i + 1, len(lines)):
+                if not lines[j].strip():
+                    insert_index = j + 1
+                    break
+            if insert_index is None:
+                insert_index = i + 1
             break
     
     if insert_index is None:
-        # No versions yet, add at the end
-        new_content = current_content.rstrip() + "\n\n" + new_section + "\n"
+        # No header found, just prepend
+        new_content = new_section + "\n\n" + content
     else:
-        # Insert before first version
+        # Insert at the found position
         lines.insert(insert_index, new_section)
-        lines.insert(insert_index + 1, "")  # Add blank line
+        lines.insert(insert_index + 1, "")
         new_content = "\n".join(lines)
     
-    # Write updated changelog
-    with open(changelog_path, "w") as f:
-        f.write(new_content)
-    
+    # Write the updated content
+    changelog_path.write_text(new_content)
     return True
 
 
-@click.command()
-@click.option("--dry-run", is_flag=True, help="Show what would be added without making changes")
-@click.option("--date", help="Override the date (YYYY-MM-DD format)")
-def main(dry_run: bool, date: Optional[str]):
-    """Generate changelog from changesets."""
+def generate_pr_description(package_updates: list[dict]) -> str:
+    """Generate a combined PR description for all package updates."""
+    lines = ["# Releases", ""]
     
-    click.echo(click.style("📜 Generating changelog...\n", fg="cyan", bold=True))
+    for update in package_updates:
+        package = update["package"]
+        version = update["version"]
+        changelog_content = update["changelog_content"]
+        
+        # Add package header
+        lines.append(f"## {package}@{version}")
+        lines.append("")
+        
+        # Add the changelog content (without the package header)
+        # Skip the first line if it's a version header
+        changelog_lines = changelog_content.split("\n")
+        start_index = 0
+        if changelog_lines and changelog_lines[0].startswith("## "):
+            start_index = 1
+        
+        lines.extend(changelog_lines[start_index:])
+        lines.append("")
     
+    return "\n".join(lines)
+
+
+def process_changesets_for_changelog() -> tuple[list[dict], str]:
+    """
+    Process changesets to generate changelog entries and PR description.
+    Returns (package_updates, pr_description).
+    """
     config = load_config()
+    pr_metadata = get_pr_metadata()
     
-    # Get all changesets grouped by package
-    package_changes = get_changesets()
+    # Get all changesets
+    changesets = get_changesets_from_changeset()
+    if not changesets:
+        return [], ""
     
-    if not package_changes:
+    # Group changesets by package
+    package_changes = {}
+    changeset_files = set()
+    
+    for filepath, package, change_type, desc in changesets:
+        changeset_files.add(filepath)
+        if package not in package_changes:
+            package_changes[package] = {"changes": [], "descriptions": []}
+        package_changes[package]["changes"].append(change_type)
+        package_changes[package]["descriptions"].append({
+            "type": change_type,
+            "description": desc,
+            "changeset": filepath.name
+        })
+    
+    # Process each package
+    package_updates = []
+    
+    for package, info in package_changes.items():
+        # Find pyproject.toml
+        try:
+            pyproject_path = find_project_pyproject(package)
+        except ValueError as e:
+            click.echo(click.style(f"⚠️  {e}", fg="yellow"))
+            continue
+        
+        # Determine new version
+        bump_type = determine_version_bump(info["changes"])
+        current_version = get_current_version(pyproject_path)
+        new_version = bump_version(current_version, bump_type)
+        
+        # Generate changelog content
+        changelog_content = generate_changelog_section(
+            package,
+            new_version,
+            info["descriptions"],
+            config,
+            pr_metadata
+        )
+        
+        # Find changelog path (same directory as pyproject.toml)
+        changelog_path = pyproject_path.parent / "CHANGELOG.md"
+        
+        package_updates.append({
+            "package": package,
+            "version": new_version,
+            "current_version": current_version,
+            "changelog_path": changelog_path,
+            "changelog_content": changelog_content,
+            "pyproject_path": pyproject_path,
+        })
+    
+    # Generate PR description
+    pr_description = generate_pr_description(package_updates)
+    
+    return package_updates, pr_description
+
+
+@click.command()
+@click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
+@click.option("--output-pr-description", help="File to write PR description to")
+def main(dry_run: bool, output_pr_description: str):
+    """Generate changelogs from changesets with version bumping."""
+    
+    click.echo(click.style("📜 Generating changelogs...\n", fg="cyan", bold=True))
+    
+    # Process changesets
+    package_updates, pr_description = process_changesets_for_changelog()
+    
+    if not package_updates:
         click.echo(click.style("No changesets found. Nothing to do!", fg="yellow"))
         return
     
-    # Use provided date or current date
-    changelog_date = date or datetime.now().strftime("%Y-%m-%d")
+    # Show what will be done
+    click.echo(click.style(f"Found updates for {len(package_updates)} package(s):", fg="green"))
+    for update in package_updates:
+        click.echo(f"  📦 {update['package']}: {update['current_version']} → {update['version']}")
     
-    # Process each package
-    for package, entries in package_changes.items():
-        # Find the package's pyproject.toml
-        pyproject_path = find_project_pyproject(package)
-        if not pyproject_path:
-            click.echo(click.style(f"⚠️  Could not find pyproject.toml for {package}", fg="yellow"))
-            continue
+    if dry_run:
+        click.echo(click.style("\n🔍 Dry run mode - no changes will be made", fg="yellow"))
+        click.echo("\n" + "="*60)
+        click.echo(click.style("PR Description:", fg="cyan"))
+        click.echo("="*60)
+        click.echo(pr_description)
+        click.echo("="*60)
         
-        # Get current version from pyproject.toml
-        version = get_current_version(pyproject_path)
+        for update in package_updates:
+            click.echo(click.style(f"\nChangelog for {update['changelog_path']}:", fg="cyan"))
+            click.echo("-"*60)
+            click.echo(update["changelog_content"])
+            click.echo("-"*60)
+        return
+    
+    # Update changelog files
+    for update in package_updates:
+        success = update_or_create_changelog(
+            update["changelog_path"],
+            update["package"],
+            update["changelog_content"]
+        )
         
-        click.echo(click.style(f"📦 Processing {package} v{version}...", fg="green"))
-        
-        # Find changelog for this package
-        changelog_path = find_package_changelog(package, pyproject_path)
-        
-        # Generate changelog section
-        new_section = generate_package_section(package, version, entries, config, changelog_date)
-        
-        if dry_run:
-            click.echo(click.style(f"\nChangelog for {changelog_path}:", fg="cyan"))
-            click.echo("-" * 60)
-            click.echo(new_section)
-            click.echo("-" * 60)
+        if success:
+            click.echo(click.style(f"✅ Updated {update['changelog_path']}", fg="green"))
         else:
-            # Update changelog file
-            if update_changelog(changelog_path, new_section, package, version):
-                click.echo(click.style(f"  ✅ Updated {changelog_path}", fg="green"))
-            else:
-                click.echo(click.style(f"  ❌ Failed to update {changelog_path}", fg="red"))
+            click.echo(click.style(f"❌ Failed to update {update['changelog_path']}", fg="red"))
     
-    if not dry_run:
-        click.echo(click.style("\n✅ Changelog generation complete!", fg="green", bold=True))
-        
-        # Show next steps
-        click.echo(click.style("\n📝 Next steps:", fg="yellow"))
-        click.echo("  1. Review the updated CHANGELOG.md files")
-        click.echo("  2. Commit all changes (versions, changelogs, and removed changesets)")
-        click.echo("  3. Push to update the PR")
+    # Write PR description if requested
+    if output_pr_description:
+        Path(output_pr_description).write_text(pr_description)
+        click.echo(click.style(f"✅ Wrote PR description to {output_pr_description}", fg="green"))
+    
+    click.echo(click.style("\n✅ Changelog generation complete!", fg="green", bold=True))
 
 
 if __name__ == "__main__":
