@@ -357,6 +357,9 @@ def add(all: bool):
     # Select packages
     if all:
         selected_packages = projects
+    elif len(projects) == 1:
+        # Skip selection if there's only one package
+        selected_packages = projects
     else:
         selected_packages = select_packages(changed_projects, unchanged_projects)
 
