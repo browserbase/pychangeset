@@ -374,7 +374,16 @@ def add(all: bool):
     package_changes = []
 
     for project_path, project_name in selected_packages:
-        console.print(f"\n📦 [bold]{project_name}[/bold]")
+        # Try to get the current version
+        current_version = "unknown"
+        try:
+            pyproject_path = project_path / "pyproject.toml"
+            if pyproject_path.exists():
+                with open(pyproject_path, 'rb') as f:
+                    data = tomllib.load(f)
+                    current_version = data.get('project', {}).get('version', 'unknown')
+        except:
+            pass
 
         # Build choices for change type selection (patch first, major last)
         type_choices = []
@@ -392,7 +401,7 @@ def add(all: bool):
 
         # Use questionary for change type selection
         change_type = questionary.select(
-            "What kind of change is this?",
+            f"What kind of change is this for {project_name}? (current version is {current_version})",
             choices=type_choices
         ).ask()
 
