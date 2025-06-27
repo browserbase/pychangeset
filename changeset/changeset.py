@@ -16,6 +16,7 @@ import click
 import git
 import questionary
 import toml
+from packaging.version import Version, InvalidVersion
 from questionary import Choice
 from rich.console import Console
 from rich.prompt import Confirm
@@ -399,11 +400,14 @@ def determine_version_bump(changes: list[str]) -> str:
 
 def parse_version(version_str: str) -> tuple[int, int, int]:
     """Parse semantic version string."""
-    match = re.match(r"(\d+)\.(\d+)\.(\d+)", version_str)
-    if not match:
+    try:
+        v = Version(version_str)
+        # We only support simple X.Y.Z versions for changesets
+        if v.pre or v.post or v.dev or v.local:
+            raise ValueError(f"Invalid version format: {version_str}")
+        return v.major, v.minor, v.micro
+    except InvalidVersion:
         raise ValueError(f"Invalid version format: {version_str}")
-
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
 
 
 def bump_version(current_version: str, bump_type: str) -> str:
@@ -604,6 +608,24 @@ def add(all: bool):
     console.print(
         "\n💡 Tip: Commit this changeset with your changes!", style="bright_black"
     )
+
+
+@cli.command(name="check-changeset")
+@click.option("--skip-ci", is_flag=True, help="Skip check in CI environment")
+def check_changeset(skip_ci: bool):
+    """Check if a changeset exists for the current branch."""
+    from changeset.check_changeset import main as check_main
+
+    # Pass the skip_ci flag through
+    import sys
+    original_argv = sys.argv
+    try:
+        sys.argv = ["check-changeset"]
+        if skip_ci:
+            sys.argv.append("--skip-ci")
+        check_main()
+    finally:
+        sys.argv = original_argv
 
 
 @cli.command()

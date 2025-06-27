@@ -10,7 +10,7 @@ repos:
     hooks:
       - id: check-changeset
         name: Check for changeset
-        entry: python changeset/check-changeset.py
+        entry: python changeset/check_changeset.py
         language: python
         pass_filenames: false
         always_run: true
