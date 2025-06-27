@@ -133,27 +133,31 @@ def find_python_projects(root_path: Path = Path(".")) -> List[Tuple[Path, str]]:
 
 
 def get_changed_files() -> Set[str]:
-    """Get set of changed files compared to base branch."""
-    config = load_config()
-    base_branch = config.get("baseBranch", "main")
-
+    """Get set of changed files in the filesystem (unstaged and staged)."""
     try:
         repo = git.Repo(".")
-
-        # Get current branch
-        try:
-            current_branch = repo.active_branch.name
-        except TypeError:
-            # Detached HEAD
-            return set()
-
-        # Get diff between current branch and base
-        diff_output = repo.git.diff(f"{base_branch}...HEAD", "--name-only")
-
-        if not diff_output:
-            return set()
-
-        return set(diff_output.strip().split("\n"))
+        
+        changed_files = set()
+        
+        # Get unstaged changes
+        for item in repo.index.diff(None):
+            if item.a_path:
+                changed_files.add(item.a_path)
+            if item.b_path:
+                changed_files.add(item.b_path)
+        
+        # Get staged changes
+        for item in repo.index.diff("HEAD"):
+            if item.a_path:
+                changed_files.add(item.a_path)
+            if item.b_path:
+                changed_files.add(item.b_path)
+        
+        # Get untracked files
+        for item in repo.untracked_files:
+            changed_files.add(item)
+        
+        return changed_files
     except Exception:
         return set()
 
