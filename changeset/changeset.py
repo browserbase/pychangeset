@@ -401,8 +401,9 @@ def add(all: bool):
 
         # Use questionary for change type selection
         change_type = questionary.select(
-            f"What kind of change is this for {project_name}? (current version is {current_version})",
-            choices=type_choices
+            f"What kind of change is this for '{project_name}'? (current version is {current_version})",
+            choices=type_choices,
+            instruction="(↑↓ to move, enter to confirm)"
         ).ask()
 
         if change_type is None:
