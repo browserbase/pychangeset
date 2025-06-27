@@ -27,12 +27,81 @@ CHANGESET_DIR = Path(".changeset")
 CONFIG_FILE = CHANGESET_DIR / "config.json"
 
 
+def init_changesets(base_branch: str = "main", interactive: bool = True):
+    """Initialize changesets configuration."""
+    # Create .changeset directory
+    CHANGESET_DIR.mkdir(exist_ok=True)
+
+    # Create config.json with simplified config
+    config = {
+        "baseBranch": base_branch,
+        "changeTypes": {
+            "major": {
+                "description": "Breaking changes",
+                "emoji": "💥"
+            },
+            "minor": {
+                "description": "New features",
+                "emoji": "✨"
+            },
+            "patch": {
+                "description": "Bug fixes and improvements",
+                "emoji": "🐛"
+            }
+        }
+    }
+
+    # TODO: make this less complicated, just detect main or master
+    # Ask for base branch if interactive
+    if interactive:
+        try:
+            # Try to detect current git branch
+            import git
+            repo = git.Repo(".")
+            current_branch = repo.active_branch.name
+            default_branch = "main" if current_branch != "main" else current_branch
+        except:
+            default_branch = "main"
+
+        base_branch = Prompt.ask("What is your base branch?", default=default_branch)
+        config["baseBranch"] = base_branch
+
+    # Write config
+    with open(CONFIG_FILE, "w") as f:
+        json.dump(config, f, indent=2)
+
+    # Create README.md
+    readme_path = CHANGESET_DIR / "README.md"
+    readme_content = """# Changesets
+
+This directory contains changeset files that track changes to packages in this repository.
+
+## Creating a changeset
+
+Run `changeset` or `changeset add` to create a new changeset.
+
+## More info
+
+See https://github.com/browserbase/pychangeset for more information.
+"""
+
+    with open(readme_path, "w") as f:
+        f.write(readme_content)
+
+    # Add .gitkeep to preserve empty directory
+    gitkeep_path = CHANGESET_DIR / ".gitkeep"
+    gitkeep_path.touch()
+
+
 def load_config() -> Dict:
     """Load changeset configuration."""
     if not CONFIG_FILE.exists():
-        console.print("❌ No changeset config found. Please run from project root.", style="red")
-        sys.exit(1)
-    
+        # Auto-initialize if config doesn't exist
+        # TODO: actual project root detection
+        console.print("🚀 Initializing changesets...", style="cyan bold")
+        init_changesets()
+        console.print("✨ Changesets initialized successfully!\n", style="green bold")
+
     with open(CONFIG_FILE) as f:
         return json.load(f)
 
