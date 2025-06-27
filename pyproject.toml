@@ -7,6 +7,19 @@ name = "changeset"
 version = "0.1.0"
 description = "Changeset management tool for Python projects"
 readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "Roaring Knight", email = "knight@purelymail.com" }]
+keywords = ["changeset", "versioning", "changelog", "release"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: Software Development :: Version Control",
+]
 requires-python = ">=3.11"
 dependencies = [
     "click>=8.0",
@@ -14,11 +27,17 @@ dependencies = [
     "gitpython>=3.0",
     "rich>=10.0",
     "coolname>=2.0",
+    "questionary>=2.1.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/browserbase/pychangeset"
+Repository = "https://github.com/browserbase/pychangeset"
+Issues = "https://github.com/browserbase/pychangeset/issues"
+
 [project.scripts]
-changeset = "changeset.changeset:main"
-pychangeset = "changeset.changeset:main"
+changeset = "changeset.__main__:main"
+pychangeset = "changeset.__main__:main"
 pychangeset-version = "changeset.version:main"
 pychangeset-changelog = "changeset.changelog:main"
 
