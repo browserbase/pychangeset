@@ -66,7 +66,7 @@ def main(skip_ci):
         # Get uncommitted changeset files
         uncommitted_changesets = []
         for item in repo.index.entries:
-            filepath = item[0]
+            filepath = str(item[0])  # Ensure it's a string
             if filepath.startswith(".changeset/") and filepath.endswith(".md") and "README" not in filepath:
                 uncommitted_changesets.append(filepath)
         
@@ -74,8 +74,10 @@ def main(skip_ci):
         staged_changesets = []
         diff = repo.index.diff("HEAD")
         for item in diff:
-            if item.a_path and item.a_path.startswith(".changeset/") and item.a_path.endswith(".md") and "README" not in item.a_path:
-                staged_changesets.append(item.a_path)
+            if item.a_path:
+                a_path = str(item.a_path)  # Ensure it's a string
+                if a_path.startswith(".changeset/") and a_path.endswith(".md") and "README" not in a_path:
+                    staged_changesets.append(a_path)
         
         # Check if any changesets exist
         if uncommitted_changesets or staged_changesets:
