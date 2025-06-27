@@ -207,27 +207,7 @@ def get_project_changes(projects: List[Tuple[Path, str]], changed_files: Set[str
 
 
 def select_packages(changed_projects: List[Tuple[Path, str]], unchanged_projects: List[Tuple[Path, str]]) -> List[Tuple[Path, str]]:
-    """Interactive package selection with group selection support."""
-
-    # Check if we're in an interactive terminal
-    try:
-        import os
-        if not os.isatty(0):
-            # Fallback to simple questionary if not in terminal
-            return _select_packages_simple(changed_projects, unchanged_projects)
-    except:
-        pass
-
-    try:
-        # Try the advanced selector first
-        return _select_packages_advanced(changed_projects, unchanged_projects)
-    except:
-        # Fallback to simple selector if advanced fails
-        return _select_packages_simple(changed_projects, unchanged_projects)
-
-
-def _select_packages_simple(changed_projects: List[Tuple[Path, str]], unchanged_projects: List[Tuple[Path, str]]) -> List[Tuple[Path, str]]:
-    """Simple package selection using questionary with separators."""
+    """Interactive package selection using questionary."""
 
     # Check if we're in a non-interactive environment
     import os
@@ -239,11 +219,11 @@ def _select_packages_simple(changed_projects: List[Tuple[Path, str]], unchanged_
             for _, name in changed_projects:
                 console.print(f"  • {name}", style="green")
         return changed_projects
-
+    
     # Build choices list
     choices = []
     package_map = {}
-
+    
     # Add section separators and packages
     if changed_projects:
         # Add a visual separator for changed packages
@@ -252,7 +232,7 @@ def _select_packages_simple(changed_projects: List[Tuple[Path, str]], unchanged_
             value = f"changed_{name}"
             choices.append(Choice(title=name, value=value, checked=True))
             package_map[value] = (path, name)
-
+    
     if unchanged_projects:
         # Add a visual separator for unchanged packages
         choices.append(questionary.Separator("── Unchanged packages ──"))
@@ -260,223 +240,32 @@ def _select_packages_simple(changed_projects: List[Tuple[Path, str]], unchanged_
             value = f"unchanged_{name}"
             choices.append(Choice(title=name, value=value, checked=False))
             package_map[value] = (path, name)
-
+    
     # If no packages at all
     if not package_map:
         console.print("No packages found in the repository.", style="yellow")
         return []
-
+    
     # Show the checkbox prompt
     selected = questionary.checkbox(
-        "🐍 Which packages would you like to include?",
+        "Which packages would you like to include?",
         choices=choices,
         instruction="(Use ↑↓ to move, space to select, enter to confirm)"
     ).ask()
-
+    
     if selected is None:
         console.print("❌ Cancelled", style="red")
         return []
-
+    
     # Extract actual packages from the results
     result = []
     for value in selected:
         if value in package_map:
             result.append(package_map[value])
-
+    
     return result
 
 
-def _select_packages_advanced(changed_projects: List[Tuple[Path, str]], unchanged_projects: List[Tuple[Path, str]]) -> List[Tuple[Path, str]]:
-    """Advanced package selection with group selection support using prompt_toolkit."""
-
-    from prompt_toolkit import Application
-    from prompt_toolkit.key_binding import KeyBindings
-    from prompt_toolkit.layout import Layout
-    from prompt_toolkit.layout.containers import Window
-    from prompt_toolkit.layout.controls import FormattedTextControl
-    from prompt_toolkit.styles import Style
-
-    # Build the list of items
-    items = []
-    package_map = {}
-
-    # Add changed packages group
-    if changed_projects:
-        items.append({
-            'type': 'group',
-            'name': 'changed packages',
-            'selected': True,
-            'group': 'changed'
-        })
-
-        for path, name in changed_projects:
-            items.append({
-                'type': 'package',
-                'name': name,
-                'selected': True,
-                'group': 'changed',
-                'path': path
-            })
-            package_map[len(items) - 1] = (path, name)
-
-    # Add unchanged packages group
-    if unchanged_projects:
-        items.append({
-            'type': 'group',
-            'name': 'unchanged packages',
-            'selected': False,
-            'group': 'unchanged'
-        })
-
-        for path, name in unchanged_projects:
-            items.append({
-                'type': 'package',
-                'name': name,
-                'selected': False,
-                'group': 'unchanged',
-                'path': path
-            })
-            package_map[len(items) - 1] = (path, name)
-
-    if not items:
-        console.print("No packages found in the repository.", style="yellow")
-        return []
-
-    # State management
-    current_index = 0
-    confirmed = False
-    cancelled = False
-
-    def get_formatted_text():
-        """Generate the display text."""
-        lines = []
-        lines.append(('class:title', '🐍 Which packages would you like to include?\n\n'))
-
-        for i, item in enumerate(items):
-            # Cursor indicator
-            cursor = '> ' if i == current_index else '  '
-
-            # Selection indicator
-            symbol = '◉' if item['selected'] else '◯'
-
-            # Format based on type
-            if item['type'] == 'group':
-                line = f"{cursor}{symbol} {item['name']}"
-                style = 'class:group.selected' if i == current_index else 'class:group'
-            else:
-                line = f"{cursor}  {symbol} {item['name']}"
-                style = 'class:package.selected' if i == current_index else 'class:package'
-
-            lines.append((style, line + '\n'))
-
-        lines.append(('class:instruction', '\n(Use ↑↓ to move, space to select, enter to confirm)'))
-        return lines
-
-    def toggle_current():
-        """Toggle the current selection."""
-        nonlocal items
-        current_item = items[current_index]
-
-        if current_item['type'] == 'group':
-            # Toggle group and all its packages
-            new_state = not current_item['selected']
-            current_item['selected'] = new_state
-
-            # Update all packages in this group
-            group_name = current_item['group']
-            for item in items:
-                if item['type'] == 'package' and item['group'] == group_name:
-                    item['selected'] = new_state
-        else:
-            # Toggle individual package
-            current_item['selected'] = not current_item['selected']
-
-            # Update group state
-            group_name = current_item['group']
-            group_items = [item for item in items if item['type'] == 'package' and item['group'] == group_name]
-            all_selected = all(item['selected'] for item in group_items)
-
-            # Find and update the group header
-            for item in items:
-                if item['type'] == 'group' and item['group'] == group_name:
-                    item['selected'] = all_selected
-                    break
-
-    # Key bindings
-    kb = KeyBindings()
-
-    @kb.add('up')
-    @kb.add('k')
-    def move_up(event):
-        nonlocal current_index
-        if current_index > 0:
-            current_index -= 1
-
-    @kb.add('down')
-    @kb.add('j')
-    def move_down(event):
-        nonlocal current_index
-        if current_index < len(items) - 1:
-            current_index += 1
-
-    @kb.add('space')
-    def toggle_selection(event):
-        toggle_current()
-
-    @kb.add('enter')
-    def confirm(event):
-        nonlocal confirmed
-        confirmed = True
-        event.app.exit()
-
-    @kb.add('c-c')
-    @kb.add('c-d')
-    @kb.add('escape')
-    def cancel(event):
-        nonlocal cancelled
-        cancelled = True
-        event.app.exit()
-
-    # Style
-    style = Style.from_dict({
-        'title': 'bold cyan',
-        'group': '',
-        'group.selected': 'reverse',
-        'package': '',
-        'package.selected': 'reverse',
-        'instruction': '#666666',
-    })
-
-    # Create the application
-    layout = Layout(
-        Window(
-            content=FormattedTextControl(get_formatted_text),
-            height=len(items) + 5,  # Account for title and instruction
-        )
-    )
-
-    app = Application(
-        layout=layout,
-        key_bindings=kb,
-        style=style,
-        mouse_support=False,
-        full_screen=False,
-    )
-
-    # Run the application
-    app.run()
-
-    if cancelled:
-        console.print("❌ Cancelled", style="red")
-        return []
-
-    # Extract selected packages
-    result = []
-    for i, item in enumerate(items):
-        if item['type'] == 'package' and item['selected'] and i in package_map:
-            result.append(package_map[i])
-
-    return result
 
 
 def generate_changeset_name() -> str:
