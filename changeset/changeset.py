@@ -29,14 +29,13 @@ CHANGESET_DIR = Path(".changeset")
 CONFIG_FILE = CHANGESET_DIR / "config.json"
 
 
-def init_changesets(base_branch: str = "main", interactive: bool = True):
+def init_changesets():
     """Initialize changesets configuration."""
     # Create .changeset directory
     CHANGESET_DIR.mkdir(exist_ok=True)
 
     # Create config.json with simplified config
     config = {
-        "baseBranch": base_branch,
         "changeTypes": {
             "major": {
                 "description": "Breaking changes",
@@ -53,20 +52,42 @@ def init_changesets(base_branch: str = "main", interactive: bool = True):
         }
     }
 
-    # TODO: make this less complicated, just detect main or master
-    # Ask for base branch if interactive
-    if interactive:
-        try:
-            # Try to detect current git branch
-            import git
-            repo = git.Repo(".")
-            current_branch = repo.active_branch.name
-            default_branch = "main" if current_branch != "main" else current_branch
-        except:
-            default_branch = "main"
-
-        base_branch = Prompt.ask("What is your base branch?", default=default_branch)
-        config["baseBranch"] = base_branch
+    # Detect base branch automatically
+    try:
+        repo = git.Repo(".")
+        remote_refs = [ref.name for ref in repo.remote().refs]
+        
+        has_main = any('main' in ref for ref in remote_refs)
+        has_master = any('master' in ref for ref in remote_refs)
+        
+        if has_main and has_master:
+            console.print("❌ Error: Both 'main' and 'master' branches exist in the repository.", style="red")
+            console.print("Please remove one of them to avoid ambiguity.", style="red")
+            sys.exit(1)
+        elif has_main:
+            base_branch = "main"
+        elif has_master:
+            base_branch = "master"
+        else:
+            # Fallback to checking local branches
+            local_branches = [branch.name for branch in repo.branches]
+            if "main" in local_branches and "master" in local_branches:
+                console.print("❌ Error: Both 'main' and 'master' branches exist in the repository.", style="red")
+                console.print("Please remove one of them to avoid ambiguity.", style="red")
+                sys.exit(1)
+            elif "main" in local_branches:
+                base_branch = "main"
+            elif "master" in local_branches:
+                base_branch = "master"
+            else:
+                # Default to main if no branches exist yet
+                base_branch = "main"
+    except:
+        # Default to main if git is not available
+        base_branch = "main"
+    
+    config["baseBranch"] = base_branch
+    console.print(f"✅ Detected base branch: {base_branch}", style="green")
 
     # Write config
     with open(CONFIG_FILE, "w") as f:
