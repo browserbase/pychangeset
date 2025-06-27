@@ -1,0 +1,33 @@
+# Ruff configuration for pychangeset
+
+# Assume Python 3.11
+target-version = "py311"
+
+# Line length to match Black's default
+line-length = 88
+
+[lint]
+# Enable pycodestyle warnings for whitespace issues
+select = [
+    "E",      # pycodestyle errors
+    "F",      # pyflakes
+    "I",      # isort
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "RUF",    # Ruff-specific rules
+    "W",      # pycodestyle warnings (includes whitespace)
+]
+
+# Ignore specific rules if needed
+ignore = [
+    "N999",   # Invalid module name (for check-changeset.py, validate-changesets.py)
+]
+
+[lint.isort]
+known-first-party = ["changeset"]
+
+[format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
