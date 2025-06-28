@@ -1,5 +1,0 @@
----
-"changeset": patch
----
-
-update readme
