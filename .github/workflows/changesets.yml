@@ -73,6 +73,7 @@ jobs:
           echo "PR_DESCRIPTION<<EOF" >> $GITHUB_ENV
           cat pr-description.md >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+          rm pr-description.md
 
       - name: Bump versions
         if: steps.check_changesets.outputs.has_changesets == 'true'
@@ -142,4 +143,3 @@ jobs:
               });
               console.log(`Created PR #${pr.number}`);
             }
-
