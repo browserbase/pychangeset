@@ -16,7 +16,7 @@ import click
 import git
 import questionary
 import toml
-from packaging.version import Version, InvalidVersion
+from packaging.version import InvalidVersion, Version
 from questionary import Choice
 from rich.console import Console
 from rich.prompt import Confirm
@@ -465,14 +465,16 @@ def cli():
 
 
 @cli.command()
-@click.option("--dry-run", is_flag=True, help="Show what would be done without making changes")
+@click.option(
+    "--dry-run", is_flag=True, help="Show what would be done without making changes"
+)
 @click.option("--output-pr-description", help="File to write PR description to")
 def changelog(dry_run: bool, output_pr_description: str):
     """Generate changelogs from changesets."""
-    from changeset.changelog import main as changelog_main
-    
     # Pass through to the changelog module
     import sys
+
+    from changeset.changelog import main as changelog_main
     original_argv = sys.argv
     try:
         sys.argv = ["changelog"]
@@ -635,10 +637,10 @@ def add(all: bool):
 @click.option("--skip-ci", is_flag=True, help="Skip check in CI environment")
 def check_changeset(skip_ci: bool):
     """Check if a changeset exists for the current branch."""
-    from changeset.check_changeset import main as check_main
-
     # Pass the skip_ci flag through
     import sys
+
+    from changeset.check_changeset import main as check_main
     original_argv = sys.argv
     try:
         sys.argv = ["check-changeset"]
