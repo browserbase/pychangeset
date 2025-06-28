@@ -38,21 +38,7 @@ git push
 
 ### 2. Automated Release Process
 
-To get the most value out of `changeset`, use the GitHub workflows in (`.github/workflows`)
-
-When you merge to your main branch, GitHub Actions will:
-1. Create or update a Release PR with:
-   - Updated CHANGELOG.md files
-   - Bumped version numbers
-   - Consolidated PR description
-2. When the Release PR is merged:
-   - Publish packages to PyPI
-   - Create git tags
-   - Create GitHub releases
-
-## GitHub Actions Setup
-
-Add these workflows to your repository:
+To get the most out of pychangeset, add these workflows to your repository:
 
 ### `.github/workflows/changesets.yml`
 
