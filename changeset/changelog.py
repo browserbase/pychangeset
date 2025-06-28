@@ -44,10 +44,7 @@ def get_git_info() -> dict:
     # Get the current commit hash
     try:
         result = subprocess.run(
-            ["git", "rev-parse", "HEAD"],
-            capture_output=True,
-            text=True,
-            check=True
+            ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=True
         )
         info["commit"] = result.stdout.strip()[:7]  # Short hash
     except Exception:
@@ -59,7 +56,7 @@ def get_git_info() -> dict:
             ["git", "remote", "get-url", "origin"],
             capture_output=True,
             text=True,
-            check=True
+            check=True,
         )
         remote_url = result.stdout.strip()
         # Extract owner/repo from URL
@@ -95,11 +92,7 @@ def get_pr_metadata() -> dict:
     return metadata
 
 
-def format_changelog_entry(
-    entry: dict,
-    config: dict,
-    pr_metadata: dict
-) -> str:
+def format_changelog_entry(entry: dict, config: dict, pr_metadata: dict) -> str:
     """Format a single changelog entry with PR and commit info."""
     description = entry["description"]
     pr_number = pr_metadata.get("pr_number")
@@ -129,11 +122,7 @@ def format_changelog_entry(
 
 
 def generate_changelog_section(
-    package: str,
-    new_version: str,
-    entries: list[dict],
-    config: dict,
-    pr_metadata: dict
+    package: str, new_version: str, entries: list[dict], config: dict, pr_metadata: dict
 ) -> str:
     """Generate changelog section for a package version."""
     lines = []
@@ -159,7 +148,7 @@ def generate_changelog_section(
         type_label = {
             "major": "Major Changes",
             "minor": "Minor Changes",
-            "patch": "Patch Changes"
+            "patch": "Patch Changes",
         }.get(change_type, f"{change_type.capitalize()} Changes")
 
         lines.append(f"### {type_label}")
@@ -175,9 +164,7 @@ def generate_changelog_section(
 
 
 def update_or_create_changelog(
-    changelog_path: Path,
-    package_name: str,
-    new_section: str
+    changelog_path: Path, package_name: str, new_section: str
 ) -> bool:
     """Update or create a changelog file."""
     if changelog_path.exists():
@@ -264,11 +251,9 @@ def process_changesets_for_changelog() -> tuple[list[dict], str]:
         if package not in package_changes:
             package_changes[package] = {"changes": [], "descriptions": []}
         package_changes[package]["changes"].append(change_type)
-        package_changes[package]["descriptions"].append({
-            "type": change_type,
-            "description": desc,
-            "changeset": filepath.name
-        })
+        package_changes[package]["descriptions"].append(
+            {"type": change_type, "description": desc, "changeset": filepath.name}
+        )
 
     # Process each package
     package_updates = []
@@ -288,24 +273,22 @@ def process_changesets_for_changelog() -> tuple[list[dict], str]:
 
         # Generate changelog content
         changelog_content = generate_changelog_section(
-            package,
-            new_version,
-            info["descriptions"],
-            config,
-            pr_metadata
+            package, new_version, info["descriptions"], config, pr_metadata
         )
 
         # Find changelog path (same directory as pyproject.toml)
         changelog_path = pyproject_path.parent / "CHANGELOG.md"
 
-        package_updates.append({
-            "package": package,
-            "version": new_version,
-            "current_version": current_version,
-            "changelog_path": changelog_path,
-            "changelog_content": changelog_content,
-            "pyproject_path": pyproject_path,
-        })
+        package_updates.append(
+            {
+                "package": package,
+                "version": new_version,
+                "current_version": current_version,
+                "changelog_path": changelog_path,
+                "changelog_content": changelog_content,
+                "pyproject_path": pyproject_path,
+            }
+        )
 
     # Generate PR description
     pr_description = generate_pr_description(package_updates)
@@ -335,35 +318,33 @@ def main(dry_run: bool, output_pr_description: str):
         click.style(f"Found updates for {len(package_updates)} package(s):", fg="green")
     )
     for update in package_updates:
-        current = update['current_version']
-        new = update['version']
+        current = update["current_version"]
+        new = update["version"]
         click.echo(f"  📦 {update['package']}: {current} → {new}")
 
     if dry_run:
         click.echo(
             click.style("\n🔍 Dry run mode - no changes will be made", fg="yellow")
         )
-        click.echo("\n" + "="*60)
+        click.echo("\n" + "=" * 60)
         click.echo(click.style("PR Description:", fg="cyan"))
-        click.echo("="*60)
+        click.echo("=" * 60)
         click.echo(pr_description)
-        click.echo("="*60)
+        click.echo("=" * 60)
 
         for update in package_updates:
             click.echo(
                 click.style(f"\nChangelog for {update['changelog_path']}:", fg="cyan")
             )
-            click.echo("-"*60)
+            click.echo("-" * 60)
             click.echo(update["changelog_content"])
-            click.echo("-"*60)
+            click.echo("-" * 60)
         return
 
     # Update changelog files
     for update in package_updates:
         success = update_or_create_changelog(
-            update["changelog_path"],
-            update["package"],
-            update["changelog_content"]
+            update["changelog_path"], update["package"], update["changelog_content"]
         )
 
         if success:

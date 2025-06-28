@@ -475,6 +475,7 @@ def changelog(dry_run: bool, output_pr_description: str):
     import sys
 
     from changeset.changelog import main as changelog_main
+
     original_argv = sys.argv
     try:
         sys.argv = ["changelog"]
@@ -641,6 +642,7 @@ def check_changeset(skip_ci: bool):
     import sys
 
     from changeset.check_changeset import main as check_main
+
     original_argv = sys.argv
     try:
         sys.argv = ["check-changeset"]
