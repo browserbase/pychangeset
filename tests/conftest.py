@@ -15,7 +15,7 @@ def cli_runner() -> CliRunner:
 
 
 @pytest.fixture
-def temp_repo(tmp_path: Path) -> Generator[Path, None, None]:
+def temp_repo(tmp_path: Path) -> Generator[Path]:
     """Create a temporary git repository for testing."""
     import subprocess
 

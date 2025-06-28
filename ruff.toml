@@ -1,7 +1,7 @@
 # Ruff configuration for pychangeset
 
-# Assume Python 3.11
-target-version = "py311"
+# Assume Python 3.13
+target-version = "py313"
 
 # Line length to match Black's default
 line-length = 88
