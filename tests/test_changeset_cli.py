@@ -216,7 +216,9 @@ class TestCheckChangesetCommand:
         result = cli_runner.invoke(cli, ["check-changeset"])
 
         assert result.exit_code == 0
-        assert "Skipping changeset check for branch: main" in result.output
+        # Accept either main or master as the default branch
+        assert ("Skipping changeset check for branch: main" in result.output or
+                "Skipping changeset check for branch: master" in result.output)
 
     def test_check_changeset_on_feature_branch_without_changeset(
         self, cli_runner: CliRunner, initialized_changeset_project: Path
