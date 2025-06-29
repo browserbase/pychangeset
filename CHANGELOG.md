@@ -1,5 +1,11 @@
 # changeset
 
+## 0.2.1
+
+### Patch Changes
+
+[`1be20d5`](https://github.com/browserbase/pychangeset/commit/1be20d5) - fix publish workflow
+
 ## 0.2.0
 
 ### Minor Changes
