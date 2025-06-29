@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "changeset"
-version = "0.1.0"
+version = "0.2.0"
 description = "Changeset management tool for Python projects"
 readme = "README.md"
 keywords = [ "changeset", "versioning", "changelog", "release",]
@@ -30,12 +30,7 @@ pychangeset-version = "changeset.version:main"
 pychangeset-changelog = "changeset.changelog:main"
 
 [tool.uv]
-dev-dependencies = [
-    "ruff>=0.1.0",
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "pytest-mock>=3.0",
-]
+dev-dependencies = [ "ruff>=0.1.0", "pytest>=7.0", "pytest-cov>=4.0", "pytest-mock>=3.0",]
 
 [tool.hatch.build.targets.wheel]
 packages = [ "changeset",]
