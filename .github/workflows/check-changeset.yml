@@ -23,8 +23,4 @@ jobs:
 
       - name: Check for changeset
         run: |
-          # For published package (once on PyPI)
-          # uvx changeset check-changeset
-          
-          # For development (from repo)
-          uvx --from . changeset check-changeset
+          uvx changeset check-changeset

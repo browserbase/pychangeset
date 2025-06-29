@@ -38,11 +38,6 @@ jobs:
             echo "has_changesets=false" >> $GITHUB_OUTPUT
           fi
 
-      - name: Install changeset package
-        if: steps.check_changesets.outputs.has_changesets == 'true'
-        run: |
-          uv pip install --system -e .
-
       - name: Get PR metadata
         if: steps.check_changesets.outputs.has_changesets == 'true'
         id: pr_metadata
@@ -67,7 +62,7 @@ jobs:
         if: steps.check_changesets.outputs.has_changesets == 'true'
         run: |
           # Generate changelogs and PR description
-          changeset changelog --output-pr-description pr-description.md
+          uvx changeset changelog --output-pr-description pr-description.md
 
           # Save PR description for later use
           echo "PR_DESCRIPTION<<EOF" >> $GITHUB_ENV
@@ -78,7 +73,7 @@ jobs:
       - name: Bump versions
         if: steps.check_changesets.outputs.has_changesets == 'true'
         run: |
-          changeset version --skip-changelog
+          uvx changeset version --skip-changelog
 
       - name: Commit changes
         if: steps.check_changesets.outputs.has_changesets == 'true'
