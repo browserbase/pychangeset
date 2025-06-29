@@ -65,8 +65,6 @@ jobs:
           echo "release_tags=$RELEASE_TAGS" >> $GITHUB_OUTPUT
       
       - name: Publish to PyPI
-        env:
-          UV_PUBLISH_TOKEN: ${{ secrets.PYPI_API_TOKEN }}
         run: |
           # Publish each package
           for pyproject in $(find . -name "pyproject.toml" -not -path "./.venv/*" -not -path "./node_modules/*"); do
