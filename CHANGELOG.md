@@ -1,5 +1,11 @@
 # changeset
 
+## 0.2.2
+
+### Patch Changes
+
+[`ff5d79c`](https://github.com/browserbase/pychangeset/commit/ff5d79c) - remove redundant pypi publish envvar
+
 ## 0.2.1
 
 ### Patch Changes
