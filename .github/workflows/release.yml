@@ -72,7 +72,7 @@ jobs:
           for pyproject in $(find . -name "pyproject.toml" -not -path "./.venv/*" -not -path "./node_modules/*"); do
             dir=$(dirname "$pyproject")
             echo "Publishing package in $dir"
-            (cd "$dir" && uv publish --skip-existing)
+            (cd "$dir" && uv publish)
           done
       
       - name: Create git tags
