@@ -1,5 +1,11 @@
 # changeset
 
+## 0.2.3
+
+### Patch Changes
+
+[#5](https://github.com/the-roaring/pychangeset/pull/5) [`c46b652`](https://github.com/the-roaring/pychangeset/commit/c46b652) Thanks @the-roaring! - fix pr metadata grabbing
+
 ## 0.2.2
 
 ### Patch Changes
