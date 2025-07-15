@@ -150,6 +150,7 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                     )
                     if gh_result.stdout.strip():
                         metadata["pr_author"] = gh_result.stdout.strip()
+                        metadata["pr_author_is_username"] = True
 
                     # Also try to get co-authors from PR commits
                     try:
@@ -176,6 +177,7 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                             commit_authors.discard('')  # Remove empty strings
                             if commit_authors:
                                 metadata["co_authors"] = list(commit_authors)
+                                metadata["co_authors_are_usernames"] = True
                     except Exception:
                         pass
 
@@ -188,6 +190,7 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                     )
                     if author_result.stdout.strip():
                         metadata["pr_author"] = author_result.stdout.strip()
+                        metadata["pr_author_is_username"] = False
             else:
                 # No PR number found, use commit author
                 author_result = subprocess.run(
@@ -197,6 +200,7 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                 )
                 if author_result.stdout.strip():
                     metadata["pr_author"] = author_result.stdout.strip()
+                    metadata["pr_author_is_username"] = False
 
             # Extract co-authors from commit message if we don't already have
             # them from GitHub API
@@ -213,6 +217,7 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                             and co_author_name != metadata.get("pr_author")
                         ):
                             co_authors.append(co_author_name)
+                metadata["co_authors_are_usernames"] = False
 
                 if co_authors:
                     metadata["co_authors"] = co_authors
@@ -226,6 +231,9 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
         metadata["pr_number"] = os.environ.get("PR_NUMBER", "")
     if not metadata.get("pr_author"):
         metadata["pr_author"] = os.environ.get("PR_AUTHOR", "")
+        # Assume env var contains username if it exists
+        if metadata["pr_author"]:
+            metadata["pr_author_is_username"] = True
     if not metadata.get("commit_hash"):
         metadata["commit_hash"] = os.environ.get(
             "COMMIT_SHA", git_info.get("commit", "")
@@ -239,7 +247,9 @@ def format_changelog_entry(entry: dict, config: dict, pr_metadata: dict) -> str:
     description = entry["description"]
     pr_number = pr_metadata.get("pr_number")
     pr_author = pr_metadata.get("pr_author")
+    pr_author_is_username = pr_metadata.get("pr_author_is_username", False)
     co_authors = pr_metadata.get("co_authors", [])
+    co_authors_are_usernames = pr_metadata.get("co_authors_are_usernames", False)
     commit_hash = pr_metadata.get("commit_hash", "")[:7]
     repo_url = pr_metadata.get("repo_url", "")
 
@@ -257,18 +267,24 @@ def format_changelog_entry(entry: dict, config: dict, pr_metadata: dict) -> str:
     # Add author thanks if available
     authors_to_thank = []
     if pr_author:
-        # Check if pr_author already contains @ symbol
+        # Only add @ if we have a GitHub username, not a display name
         if pr_author.startswith("@"):
             authors_to_thank.append(pr_author)
-        else:
+        elif pr_author_is_username:
             authors_to_thank.append(f"@{pr_author}")
+        else:
+            # Display name from git - don't add @
+            authors_to_thank.append(pr_author)
 
     # Add co-authors
     for co_author in co_authors:
         if co_author.startswith("@"):
             authors_to_thank.append(co_author)
-        else:
+        elif co_authors_are_usernames:
             authors_to_thank.append(f"@{co_author}")
+        else:
+            # Display names from git - don't add @
+            authors_to_thank.append(co_author)
 
     if authors_to_thank:
         if len(authors_to_thank) == 1:
