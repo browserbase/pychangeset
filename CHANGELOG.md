@@ -1,5 +1,11 @@
 # changeset
 
+## 0.2.5
+
+### Patch Changes
+
+[`e4a1779`](https://github.com/the-roaring/pychangeset/commit/e4a1779) Thanks @Roaring! - fix pr author metadata to get gh login, fall back to git display name
+
 ## 0.2.4
 
 ### Patch Changes
