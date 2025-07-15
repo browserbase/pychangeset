@@ -92,6 +92,99 @@ def get_pr_metadata() -> dict:
     return metadata
 
 
+def get_changeset_metadata(changeset_path: Path) -> dict:
+    """Get PR metadata for a specific changeset file.
+
+    Finds the commit that introduced the changeset and extracts metadata.
+    """
+    metadata = {}
+    git_info = get_git_info()
+    metadata["repo_url"] = git_info.get("repo_url", "")
+
+    try:
+        # Find the commit that introduced this changeset file
+        result = subprocess.run(
+            ["git", "log", "--format=%H", "--diff-filter=A", "--", str(changeset_path)],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+
+        if result.stdout.strip():
+            commit_hash = result.stdout.strip().split("\n")[0]
+            metadata["commit_hash"] = commit_hash
+
+            # Get the commit message to extract PR number
+            msg_result = subprocess.run(
+                ["git", "log", "-1", "--format=%B", commit_hash],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            commit_msg = msg_result.stdout.strip()
+
+            # Extract PR number from commit message (common patterns)
+            # Pattern 1: (#123)
+            # Pattern 2: Merge pull request #123
+            pr_match = re.search(r"(?:#|pull request #)(\d+)", commit_msg)
+            if pr_match:
+                pr_number = pr_match.group(1)
+                metadata["pr_number"] = pr_number
+
+                # Try to get PR author using GitHub CLI if available
+                try:
+                    gh_result = subprocess.run(
+                        [
+                            "gh",
+                            "api",
+                            f"repos/{git_info.get('owner', '')}/"
+                            f"{git_info.get('repo', '')}/pulls/{pr_number}",
+                            "--jq",
+                            ".user.login",
+                        ],
+                        capture_output=True,
+                        text=True,
+                        check=True,
+                    )
+                    if gh_result.stdout.strip():
+                        metadata["pr_author"] = gh_result.stdout.strip()
+                except Exception:
+                    # If gh command fails, try to extract from commit author
+                    author_result = subprocess.run(
+                        ["git", "log", "-1", "--format=%an", commit_hash],
+                        capture_output=True,
+                        text=True,
+                    )
+                    if author_result.stdout.strip():
+                        metadata["pr_author"] = author_result.stdout.strip()
+            else:
+                # No PR number found, use commit author
+                author_result = subprocess.run(
+                    ["git", "log", "-1", "--format=%an", commit_hash],
+                    capture_output=True,
+                    text=True,
+                )
+                if author_result.stdout.strip():
+                    metadata["pr_author"] = author_result.stdout.strip()
+
+    except subprocess.CalledProcessError:
+        # If git commands fail, return empty metadata
+        pass
+
+    # Fall back to environment variables if no specific metadata found
+    if not metadata.get("pr_number"):
+        metadata["pr_number"] = os.environ.get("PR_NUMBER", "")
+    if not metadata.get("pr_author"):
+        metadata["pr_author"] = os.environ.get("PR_AUTHOR", "")
+    if not metadata.get("commit_hash"):
+        metadata["commit_hash"] = os.environ.get(
+            "COMMIT_SHA", git_info.get("commit", "")
+        )
+
+    return metadata
+
+
 def format_changelog_entry(entry: dict, config: dict, pr_metadata: dict) -> str:
     """Format a single changelog entry with PR and commit info."""
     description = entry["description"]
@@ -156,7 +249,12 @@ def generate_changelog_section(
 
         # Add each entry
         for entry in grouped[change_type]:
-            lines.append(format_changelog_entry(entry, config, pr_metadata))
+            # Get metadata specific to this changeset if available
+            if "filepath" in entry:
+                changeset_metadata = get_changeset_metadata(entry["filepath"])
+            else:
+                changeset_metadata = pr_metadata
+            lines.append(format_changelog_entry(entry, config, changeset_metadata))
 
         lines.append("")
 
@@ -252,7 +350,12 @@ def process_changesets_for_changelog() -> tuple[list[dict], str]:
             package_changes[package] = {"changes": [], "descriptions": []}
         package_changes[package]["changes"].append(change_type)
         package_changes[package]["descriptions"].append(
-            {"type": change_type, "description": desc, "changeset": filepath.name}
+            {
+                "type": change_type,
+                "description": desc,
+                "changeset": filepath.name,
+                "filepath": filepath,
+            }
         )
 
     # Process each package
