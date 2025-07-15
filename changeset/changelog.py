@@ -114,7 +114,8 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
             commit_hash = result.stdout.strip().split("\n")[0]
             metadata["commit_hash"] = commit_hash
 
-            # Get the commit message to extract PR number
+
+            # Get the commit message to extract PR number and co-authors
             msg_result = subprocess.run(
                 ["git", "log", "-1", "--format=%B", commit_hash],
                 capture_output=True,
@@ -149,6 +150,35 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                     )
                     if gh_result.stdout.strip():
                         metadata["pr_author"] = gh_result.stdout.strip()
+
+                    # Also try to get co-authors from PR commits
+                    try:
+                        # Get all commits in the PR
+                        commits_result = subprocess.run(
+                            [
+                                "gh",
+                                "api",
+                                f"repos/{git_info.get('owner', '')}/"
+                                f"{git_info.get('repo', '')}/pulls/{pr_number}/commits",
+                                "--jq",
+                                ".[].author.login",
+                            ],
+                            capture_output=True,
+                            text=True,
+                            check=True,
+                        )
+                        if commits_result.stdout.strip():
+                            # Get unique commit authors (excluding the PR author)
+                            commit_authors = set(
+                                commits_result.stdout.strip().split('\n')
+                            )
+                            commit_authors.discard(metadata.get("pr_author"))
+                            commit_authors.discard('')  # Remove empty strings
+                            if commit_authors:
+                                metadata["co_authors"] = list(commit_authors)
+                    except Exception:
+                        pass
+
                 except Exception:
                     # If gh command fails, try to extract from commit author
                     author_result = subprocess.run(
@@ -167,6 +197,25 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                 )
                 if author_result.stdout.strip():
                     metadata["pr_author"] = author_result.stdout.strip()
+
+            # Extract co-authors from commit message if we don't already have
+            # them from GitHub API
+            if "co_authors" not in metadata:
+                co_authors = []
+                for line in commit_msg.split('\n'):
+                    co_author_match = re.match(
+                        r'^Co-authored-by:\s*(.+?)\s*<.*>$', line.strip()
+                    )
+                    if co_author_match:
+                        co_author_name = co_author_match.group(1).strip()
+                        if (
+                            co_author_name
+                            and co_author_name != metadata.get("pr_author")
+                        ):
+                            co_authors.append(co_author_name)
+
+                if co_authors:
+                    metadata["co_authors"] = co_authors
 
     except subprocess.CalledProcessError:
         # If git commands fail, return empty metadata
@@ -190,6 +239,7 @@ def format_changelog_entry(entry: dict, config: dict, pr_metadata: dict) -> str:
     description = entry["description"]
     pr_number = pr_metadata.get("pr_number")
     pr_author = pr_metadata.get("pr_author")
+    co_authors = pr_metadata.get("co_authors", [])
     commit_hash = pr_metadata.get("commit_hash", "")[:7]
     repo_url = pr_metadata.get("repo_url", "")
 
@@ -205,8 +255,28 @@ def format_changelog_entry(entry: dict, config: dict, pr_metadata: dict) -> str:
         parts.append(f"[`{commit_hash}`]({repo_url}/commit/{commit_hash})")
 
     # Add author thanks if available
+    authors_to_thank = []
     if pr_author:
-        parts.append(f"Thanks @{pr_author}!")
+        # Check if pr_author already contains @ symbol
+        if pr_author.startswith("@"):
+            authors_to_thank.append(pr_author)
+        else:
+            authors_to_thank.append(f"@{pr_author}")
+
+    # Add co-authors
+    for co_author in co_authors:
+        if co_author.startswith("@"):
+            authors_to_thank.append(co_author)
+        else:
+            authors_to_thank.append(f"@{co_author}")
+
+    if authors_to_thank:
+        if len(authors_to_thank) == 1:
+            parts.append(f"Thanks {authors_to_thank[0]}!")
+        else:
+            # Format multiple authors nicely
+            all_but_last = ", ".join(authors_to_thank[:-1])
+            parts.append(f"Thanks {all_but_last} and {authors_to_thank[-1]}!")
 
     # Add description
     parts.append(f"- {description}")
