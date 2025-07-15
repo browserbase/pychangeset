@@ -114,6 +114,7 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
             commit_hash = result.stdout.strip().split("\n")[0]
             metadata["commit_hash"] = commit_hash
 
+
             # Get the commit message to extract PR number and co-authors
             msg_result = subprocess.run(
                 ["git", "log", "-1", "--format=%B", commit_hash],
