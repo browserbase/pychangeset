@@ -1,5 +1,11 @@
 # changeset
 
+## 0.2.4
+
+### Patch Changes
+
+[#7](https://github.com/the-roaring/pychangeset/pull/7) [`97a64bb`](https://github.com/the-roaring/pychangeset/commit/97a64bb) Thanks @the-roaring! - fix pr metadata grabbing
+
 ## 0.2.3
 
 ### Patch Changes
