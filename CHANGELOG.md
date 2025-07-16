@@ -1,5 +1,11 @@
 # changeset
 
+## 0.2.6
+
+### Patch Changes
+
+[#11](https://github.com/the-roaring/pychangeset/pull/11) [`c655476`](https://github.com/the-roaring/pychangeset/commit/c655476) Thanks the-roaring! - emit errors when gh cli fails
+
 ## 0.2.5
 
 ### Patch Changes
