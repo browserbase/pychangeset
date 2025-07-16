@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "changeset"
-version = "0.2.7"
+version = "0.2.8"
 description = "Changeset management tool for Python projects"
 readme = "README.md"
 keywords = [ "changeset", "versioning", "changelog", "release",]
