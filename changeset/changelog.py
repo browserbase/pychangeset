@@ -188,19 +188,23 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                         if commits_result.stdout.strip():
                             import json
                             commits_data = json.loads(commits_result.stdout)
-                            
+
                             # Build a map of GitHub usernames to their info
                             github_users = {}
                             for commit in commits_data:
-                                if commit.get('author') and commit['author'].get('login'):
-                                    username = commit['author']['login']
-                                    if username and username != metadata.get("pr_author"):
+                                author = commit.get('author')
+                                if author and author.get('login'):
+                                    username = author['login']
+                                    pr_author = metadata.get("pr_author")
+                                    if username and username != pr_author:
+                                        commit_data = commit.get('commit', {})
+                                        commit_author = commit_data.get('author', {})
                                         github_users[username] = {
                                             'login': username,
-                                            'name': commit.get('commit', {}).get('author', {}).get('name', ''),
-                                            'email': commit.get('commit', {}).get('author', {}).get('email', '')
+                                            'name': commit_author.get('name', ''),
+                                            'email': commit_author.get('email', '')
                                         }
-                            
+
                             if github_users:
                                 metadata["co_authors"] = list(github_users.keys())
                                 metadata["co_authors_are_usernames"] = True
@@ -258,11 +262,11 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                 # We have GitHub users - check if commit co-authors match
                 github_users = metadata.get("github_user_info", {})
                 final_co_authors = []
-                
+
                 # Add all GitHub users
                 for username in metadata["co_authors"]:
                     final_co_authors.append((username, True))
-                
+
                 # Check commit co-authors against GitHub users
                 for commit_author in co_authors_from_commits:
                     is_duplicate = False
@@ -275,11 +279,11 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                         if commit_author['name'] == user_info.get('name', ''):
                             is_duplicate = True
                             break
-                    
+
                     if not is_duplicate:
                         # This is a unique co-author not in GitHub commits
                         final_co_authors.append((commit_author['name'], False))
-                
+
                 metadata["co_authors"] = final_co_authors
             elif co_authors_from_commits:
                 # No GitHub API data - just use commit co-authors
