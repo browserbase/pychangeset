@@ -1,5 +1,11 @@
 # changeset
 
+## 0.2.7
+
+### Patch Changes
+
+[#15](https://github.com/the-roaring/pychangeset/pull/15) [`c6fda49`](https://github.com/the-roaring/pychangeset/commit/c6fda49) Thanks @the-roaring! - bump version
+
 ## 0.2.6
 
 ### Patch Changes
