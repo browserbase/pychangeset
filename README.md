@@ -107,7 +107,7 @@ Changelogs are generated with PR and commit metadata:
 
 ```bash
 # Clone the repository
-git clone https://github.com/browserbase/pychangeset.git
+git clone https://github.com/the-roaring/pychangeset.git
 cd pychangeset
 
 # Install with uv

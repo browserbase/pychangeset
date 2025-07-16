@@ -19,9 +19,9 @@ email = "knight@purelymail.com"
 text = "MIT"
 
 [project.urls]
-Homepage = "https://github.com/browserbase/pychangeset"
-Repository = "https://github.com/browserbase/pychangeset"
-Issues = "https://github.com/browserbase/pychangeset/issues"
+Homepage = "https://github.com/the-roaring/pychangeset"
+Repository = "https://github.com/the-roaring/pychangeset"
+Issues = "https://github.com/the-roaring/pychangeset/issues"
 
 [project.scripts]
 changeset = "changeset.__main__:main"
