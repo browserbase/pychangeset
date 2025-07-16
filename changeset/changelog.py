@@ -135,38 +135,57 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
 
                 # Try to get PR author using GitHub CLI if available
                 try:
+                    # Check if we're in GitHub Actions and have a token
+                    gh_token = (
+                        os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
+                    )
+
+                    cmd = [
+                        "gh",
+                        "api",
+                        f"repos/{git_info.get('owner', '')}/"
+                        f"{git_info.get('repo', '')}/pulls/{pr_number}",
+                        "--jq",
+                        ".user.login",
+                    ]
+
+                    env = os.environ.copy()
+                    if gh_token:
+                        env['GH_TOKEN'] = gh_token
+
                     gh_result = subprocess.run(
-                        [
-                            "gh",
-                            "api",
-                            f"repos/{git_info.get('owner', '')}/"
-                            f"{git_info.get('repo', '')}/pulls/{pr_number}",
-                            "--jq",
-                            ".user.login",
-                        ],
+                        cmd,
                         capture_output=True,
                         text=True,
                         check=True,
+                        env=env,
                     )
                     if gh_result.stdout.strip():
                         metadata["pr_author"] = gh_result.stdout.strip()
                         metadata["pr_author_is_username"] = True
+                        print(
+                            f"✓ Got GitHub username for PR #{pr_number}: "
+                            f"{metadata['pr_author']}"
+                        )
 
                     # Also try to get co-authors from PR commits
                     try:
                         # Get all commits in the PR
+                        cmd = [
+                            "gh",
+                            "api",
+                            f"repos/{git_info.get('owner', '')}/"
+                            f"{git_info.get('repo', '')}/pulls/{pr_number}/commits",
+                            "--jq",
+                            ".[].author.login",
+                        ]
+
                         commits_result = subprocess.run(
-                            [
-                                "gh",
-                                "api",
-                                f"repos/{git_info.get('owner', '')}/"
-                                f"{git_info.get('repo', '')}/pulls/{pr_number}/commits",
-                                "--jq",
-                                ".[].author.login",
-                            ],
+                            cmd,
                             capture_output=True,
                             text=True,
                             check=True,
+                            env=env,
                         )
                         if commits_result.stdout.strip():
                             # Get unique commit authors (excluding the PR author)
@@ -181,8 +200,9 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                     except Exception:
                         pass
 
-                except Exception:
+                except Exception as e:
                     # If gh command fails, try to extract from commit author
+                    print(f"⚠️  GitHub CLI failed for PR #{pr_number}: {e!s}")
                     author_result = subprocess.run(
                         ["git", "log", "-1", "--format=%an", commit_hash],
                         capture_output=True,
@@ -191,6 +211,10 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                     if author_result.stdout.strip():
                         metadata["pr_author"] = author_result.stdout.strip()
                         metadata["pr_author_is_username"] = False
+                        print(
+                            f"⚠️  Using git author name for PR #{pr_number}: "
+                            f"{metadata['pr_author']} (no @ will be added)"
+                        )
             else:
                 # No PR number found, use commit author
                 author_result = subprocess.run(
