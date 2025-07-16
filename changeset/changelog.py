@@ -114,7 +114,6 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
             commit_hash = result.stdout.strip().split("\n")[0]
             metadata["commit_hash"] = commit_hash
 
-
             # Get the commit message to extract PR number and co-authors
             msg_result = subprocess.run(
                 ["git", "log", "-1", "--format=%B", commit_hash],
@@ -136,8 +135,8 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                 # Try to get PR author using GitHub CLI if available
                 try:
                     # Check if we're in GitHub Actions and have a token
-                    gh_token = (
-                        os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
+                    gh_token = os.environ.get("GITHUB_TOKEN") or os.environ.get(
+                        "GH_TOKEN"
                     )
 
                     cmd = [
@@ -151,7 +150,7 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
 
                     env = os.environ.copy()
                     if gh_token:
-                        env['GH_TOKEN'] = gh_token
+                        env["GH_TOKEN"] = gh_token
 
                     gh_result = subprocess.run(
                         cmd,
@@ -170,14 +169,12 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
 
                     # Also try to get co-authors from PR commits
                     try:
-                        # Get all commits in the PR
+                        # Get all commits in the PR with full author info
                         cmd = [
                             "gh",
                             "api",
                             f"repos/{git_info.get('owner', '')}/"
                             f"{git_info.get('repo', '')}/pulls/{pr_number}/commits",
-                            "--jq",
-                            ".[].author.login",
                         ]
 
                         commits_result = subprocess.run(
@@ -188,15 +185,31 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                             env=env,
                         )
                         if commits_result.stdout.strip():
-                            # Get unique commit authors (excluding the PR author)
-                            commit_authors = set(
-                                commits_result.stdout.strip().split('\n')
-                            )
-                            commit_authors.discard(metadata.get("pr_author"))
-                            commit_authors.discard('')  # Remove empty strings
-                            if commit_authors:
-                                metadata["co_authors"] = list(commit_authors)
+                            import json
+
+                            commits_data = json.loads(commits_result.stdout)
+
+                            # Build a map of GitHub usernames to their info
+                            github_users = {}
+                            for commit in commits_data:
+                                author = commit.get("author")
+                                if author and author.get("login"):
+                                    username = author["login"]
+                                    pr_author = metadata.get("pr_author")
+                                    if username and username != pr_author:
+                                        commit_data = commit.get("commit", {})
+                                        commit_author = commit_data.get("author", {})
+                                        github_users[username] = {
+                                            "login": username,
+                                            "name": commit_author.get("name", ""),
+                                            "email": commit_author.get("email", ""),
+                                        }
+
+                            if github_users:
+                                metadata["co_authors"] = list(github_users.keys())
                                 metadata["co_authors_are_usernames"] = True
+                                # Store the full user info for deduplication later
+                                metadata["github_user_info"] = github_users
                     except Exception:
                         pass
 
@@ -226,25 +239,53 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                     metadata["pr_author"] = author_result.stdout.strip()
                     metadata["pr_author_is_username"] = False
 
-            # Extract co-authors from commit message if we don't already have
-            # them from GitHub API
-            if "co_authors" not in metadata:
-                co_authors = []
-                for line in commit_msg.split('\n'):
-                    co_author_match = re.match(
-                        r'^Co-authored-by:\s*(.+?)\s*<.*>$', line.strip()
-                    )
-                    if co_author_match:
-                        co_author_name = co_author_match.group(1).strip()
-                        if (
-                            co_author_name
-                            and co_author_name != metadata.get("pr_author")
-                        ):
-                            co_authors.append(co_author_name)
-                metadata["co_authors_are_usernames"] = False
+            # Extract co-authors from commit message
+            co_authors_from_commits = []
+            for line in commit_msg.split("\n"):
+                co_author_match = re.match(
+                    r"^Co-authored-by:\s*(.+?)\s*<(.+?)>$", line.strip()
+                )
+                if co_author_match:
+                    co_author_name = co_author_match.group(1).strip()
+                    co_author_email = co_author_match.group(2).strip()
+                    if co_author_name and co_author_name != metadata.get("pr_author"):
+                        co_authors_from_commits.append(
+                            {"name": co_author_name, "email": co_author_email}
+                        )
 
-                if co_authors:
-                    metadata["co_authors"] = co_authors
+            # Deduplicate co-authors using GitHub user info
+            if "co_authors" in metadata and metadata.get("github_user_info"):
+                # We have GitHub users - check if commit co-authors match
+                github_users = metadata.get("github_user_info", {})
+                final_co_authors = []
+
+                # Add all GitHub users
+                for username in metadata["co_authors"]:
+                    final_co_authors.append((username, True))
+
+                # Check commit co-authors against GitHub users
+                for commit_author in co_authors_from_commits:
+                    is_duplicate = False
+                    for username, user_info in github_users.items():
+                        # Check by email (most reliable)
+                        if commit_author["email"] == user_info.get("email", ""):
+                            is_duplicate = True
+                            break
+                        # Check by name
+                        if commit_author["name"] == user_info.get("name", ""):
+                            is_duplicate = True
+                            break
+
+                    if not is_duplicate:
+                        # This is a unique co-author not in GitHub commits
+                        final_co_authors.append((commit_author["name"], False))
+
+                metadata["co_authors"] = final_co_authors
+            elif co_authors_from_commits:
+                # No GitHub API data - just use commit co-authors
+                metadata["co_authors"] = [
+                    (author["name"], False) for author in co_authors_from_commits
+                ]
 
     except subprocess.CalledProcessError:
         # If git commands fail, return empty metadata
@@ -273,7 +314,11 @@ def format_changelog_entry(entry: dict, config: dict, pr_metadata: dict) -> str:
     pr_author = pr_metadata.get("pr_author")
     pr_author_is_username = pr_metadata.get("pr_author_is_username", False)
     co_authors = pr_metadata.get("co_authors", [])
-    co_authors_are_usernames = pr_metadata.get("co_authors_are_usernames", False)
+    # Support legacy format where co_authors might be simple strings
+    if co_authors and isinstance(co_authors[0], str):
+        # Convert legacy format to new tuple format
+        co_authors_are_usernames = pr_metadata.get("co_authors_are_usernames", False)
+        co_authors = [(author, co_authors_are_usernames) for author in co_authors]
     commit_hash = pr_metadata.get("commit_hash", "")[:7]
     repo_url = pr_metadata.get("repo_url", "")
 
@@ -301,14 +346,24 @@ def format_changelog_entry(entry: dict, config: dict, pr_metadata: dict) -> str:
             authors_to_thank.append(pr_author)
 
     # Add co-authors
-    for co_author in co_authors:
-        if co_author.startswith("@"):
-            authors_to_thank.append(co_author)
-        elif co_authors_are_usernames:
-            authors_to_thank.append(f"@{co_author}")
+    for co_author_entry in co_authors:
+        # Handle both new tuple format and legacy string format
+        if isinstance(co_author_entry, tuple):
+            co_author, is_username = co_author_entry
+            if co_author.startswith("@"):
+                authors_to_thank.append(co_author)
+            elif is_username:
+                authors_to_thank.append(f"@{co_author}")
+            else:
+                # Display name from git - don't add @
+                authors_to_thank.append(co_author)
         else:
-            # Display names from git - don't add @
-            authors_to_thank.append(co_author)
+            # Legacy format - just a string
+            if co_author_entry.startswith("@"):
+                authors_to_thank.append(co_author_entry)
+            else:
+                # Assume it's a display name without context
+                authors_to_thank.append(co_author_entry)
 
     if authors_to_thank:
         if len(authors_to_thank) == 1:

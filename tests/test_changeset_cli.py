@@ -29,6 +29,7 @@ class TestInitCommand:
         with cli_runner.isolated_filesystem(temp_dir=temp_repo):
             # Create a main branch
             import subprocess
+
             subprocess.run(["git", "checkout", "-b", "main"], capture_output=True)
 
             result = cli_runner.invoke(cli, ["init"])
@@ -43,6 +44,7 @@ class TestInitCommand:
     ):
         """Test that init handles existing .changeset directory."""
         import os
+
         os.chdir(initialized_changeset_project)
         result = cli_runner.invoke(cli, ["init"], input="n\n")
 
@@ -59,6 +61,7 @@ class TestAddCommand:
     ):
         """Test creating a changeset interactively."""
         import os
+
         os.chdir(initialized_changeset_project)
 
         # Create a change
@@ -68,22 +71,26 @@ class TestAddCommand:
 
         # Mock the interactive prompts
         mocker.patch(
-            'changeset.changeset.questionary.checkbox',
+            "changeset.changeset.questionary.checkbox",
             return_value=mocker.Mock(
-                ask=mocker.Mock(return_value=['changed_test-package'])
-            )
+                ask=mocker.Mock(return_value=["changed_test-package"])
+            ),
         )
-        mocker.patch('changeset.changeset.questionary.select', return_value=mocker.Mock(
-            ask=mocker.Mock(return_value='patch')
-        ))
-        mocker.patch('changeset.changeset.questionary.text', return_value=mocker.Mock(
-            ask=mocker.Mock(return_value='Test changeset description')
-        ))
         mocker.patch(
-            'changeset.changeset.questionary.confirm',
+            "changeset.changeset.questionary.select",
+            return_value=mocker.Mock(ask=mocker.Mock(return_value="patch")),
+        )
+        mocker.patch(
+            "changeset.changeset.questionary.text",
+            return_value=mocker.Mock(
+                ask=mocker.Mock(return_value="Test changeset description")
+            ),
+        )
+        mocker.patch(
+            "changeset.changeset.questionary.confirm",
             return_value=mocker.Mock(
                 ask=mocker.Mock(return_value=False)  # Don't confirm major version
-            )
+            ),
         )
 
         # Run add command
@@ -102,6 +109,7 @@ class TestAddCommand:
     ):
         """Test add command with --all flag."""
         import os
+
         os.chdir(multi_package_project)
 
         # Initialize changesets first
@@ -110,16 +118,12 @@ class TestAddCommand:
         # Mock the interactive prompts for both packages
         select_mock = mocker.patch("changeset.changeset.questionary.select")
         # One for each package
-        select_mock.return_value.ask.side_effect = ['patch', 'patch']
+        select_mock.return_value.ask.side_effect = ["patch", "patch"]
 
         text_mock = mocker.patch("changeset.changeset.questionary.text")
-        text_mock.return_value.ask.return_value = 'Test all packages'
+        text_mock.return_value.ask.return_value = "Test all packages"
 
-        result = cli_runner.invoke(
-            cli,
-            ["add", "--all"],
-            catch_exceptions=False
-        )
+        result = cli_runner.invoke(cli, ["add", "--all"], catch_exceptions=False)
 
         # Check the command succeeded
         assert result.exit_code == 0, f"Command failed: {result.output}"
@@ -143,6 +147,7 @@ class TestVersionCommand:
     ):
         """Test that version command bumps the package version."""
         import os
+
         os.chdir(initialized_changeset_project)
 
         # Create a changeset
@@ -152,9 +157,9 @@ class TestVersionCommand:
 
 Added new feature
 """
-        (
-            initialized_changeset_project / ".changeset" / "test-change.md"
-        ).write_text(changeset_content)
+        (initialized_changeset_project / ".changeset" / "test-change.md").write_text(
+            changeset_content
+        )
 
         # Run version command
         result = cli_runner.invoke(cli, ["version", "--skip-changelog"])
@@ -163,6 +168,7 @@ Added new feature
 
         # Check version was bumped
         import toml
+
         with open(initialized_changeset_project / "pyproject.toml") as f:
             data = toml.load(f)
 
@@ -178,6 +184,7 @@ Added new feature
         project_dir = sample_changeset.parent.parent
 
         import os
+
         os.chdir(project_dir)
 
         result = cli_runner.invoke(cli, ["version", "--dry-run"])
@@ -195,6 +202,7 @@ Added new feature
     ):
         """Test version command when no changesets exist."""
         import os
+
         os.chdir(initialized_changeset_project)
 
         result = cli_runner.invoke(cli, ["version"])
@@ -211,14 +219,17 @@ class TestCheckChangesetCommand:
     ):
         """Test check-changeset on main branch (should skip)."""
         import os
+
         os.chdir(initialized_changeset_project)
 
         result = cli_runner.invoke(cli, ["check-changeset"])
 
         assert result.exit_code == 0
         # Accept either main or master as the default branch
-        assert ("Skipping changeset check for branch: main" in result.output or
-                "Skipping changeset check for branch: master" in result.output)
+        assert (
+            "Skipping changeset check for branch: main" in result.output
+            or "Skipping changeset check for branch: master" in result.output
+        )
 
     def test_check_changeset_on_feature_branch_without_changeset(
         self, cli_runner: CliRunner, initialized_changeset_project: Path
@@ -226,6 +237,7 @@ class TestCheckChangesetCommand:
         """Test check-changeset on feature branch without changeset."""
         import os
         import subprocess
+
         os.chdir(initialized_changeset_project)
 
         # Create feature branch
@@ -244,6 +256,7 @@ class TestCheckChangesetCommand:
 
         import os
         import subprocess
+
         os.chdir(project_dir)
 
         # Create feature branch and add changeset

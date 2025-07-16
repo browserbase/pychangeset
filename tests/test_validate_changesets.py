@@ -112,7 +112,7 @@ Valid change 2
         with cli_runner.isolated_filesystem(temp_dir=tmp_path.parent):
             result = cli_runner.invoke(
                 validate_main,
-                [str(tmp_path / "change1.md"), str(tmp_path / "change2.md")]
+                [str(tmp_path / "change1.md"), str(tmp_path / "change2.md")],
             )
 
             assert result.exit_code == 0

@@ -33,10 +33,14 @@ This is a test changeset with multiple packages
 
         assert len(result) == 2
         assert result[0] == (
-            "my-package", "minor", "This is a test changeset with multiple packages"
+            "my-package",
+            "minor",
+            "This is a test changeset with multiple packages",
         )
         assert result[1] == (
-            "other-package", "patch", "This is a test changeset with multiple packages"
+            "other-package",
+            "patch",
+            "This is a test changeset with multiple packages",
         )
 
     def test_parse_changeset_invalid_format(self, tmp_path: Path):
@@ -66,17 +70,20 @@ This is a test changeset with multiple packages
 class TestVersionBumping:
     """Test version bumping logic."""
 
-    @pytest.mark.parametrize("current,bump_type,expected", [
-        ("1.0.0", "major", "2.0.0"),
-        ("1.2.3", "major", "2.0.0"),
-        ("0.1.0", "major", "1.0.0"),
-        ("1.0.0", "minor", "1.1.0"),
-        ("1.2.3", "minor", "1.3.0"),
-        ("0.1.2", "minor", "0.2.0"),
-        ("1.0.0", "patch", "1.0.1"),
-        ("1.2.3", "patch", "1.2.4"),
-        ("0.0.1", "patch", "0.0.2"),
-    ])
+    @pytest.mark.parametrize(
+        "current,bump_type,expected",
+        [
+            ("1.0.0", "major", "2.0.0"),
+            ("1.2.3", "major", "2.0.0"),
+            ("0.1.0", "major", "1.0.0"),
+            ("1.0.0", "minor", "1.1.0"),
+            ("1.2.3", "minor", "1.3.0"),
+            ("0.1.2", "minor", "0.2.0"),
+            ("1.0.0", "patch", "1.0.1"),
+            ("1.2.3", "patch", "1.2.4"),
+            ("0.0.1", "patch", "0.0.2"),
+        ],
+    )
     def test_bump_version(self, current: str, bump_type: str, expected: str):
         """Test version bumping for different bump types."""
         assert bump_version(current, bump_type) == expected
@@ -119,6 +126,7 @@ class TestProjectDiscovery:
     def test_find_single_project(self, sample_project: Path):
         """Test finding a single Python project."""
         import os
+
         os.chdir(sample_project)
 
         projects = find_python_projects()
@@ -129,6 +137,7 @@ class TestProjectDiscovery:
     def test_find_multiple_projects(self, multi_package_project: Path):
         """Test finding multiple Python projects."""
         import os
+
         os.chdir(multi_package_project)
 
         projects = find_python_projects()
@@ -141,6 +150,7 @@ class TestProjectDiscovery:
     def test_find_projects_ignores_hidden_directories(self, temp_repo: Path):
         """Test that hidden directories are ignored."""
         import os
+
         os.chdir(temp_repo)
 
         # Create hidden directory with pyproject.toml
@@ -148,6 +158,7 @@ class TestProjectDiscovery:
         hidden_dir.mkdir()
 
         import toml
+
         with open(hidden_dir / "pyproject.toml", "w") as f:
             toml.dump({"project": {"name": "hidden-package"}}, f)
 
@@ -167,6 +178,7 @@ class TestGetChangesets:
     def test_get_changesets_multiple_files(self, initialized_changeset_project: Path):
         """Test getting multiple changeset files."""
         import os
+
         os.chdir(initialized_changeset_project)
 
         # Create multiple changesets
@@ -195,6 +207,7 @@ Second change
     def test_get_changesets_ignores_readme(self, initialized_changeset_project: Path):
         """Test that README.md is ignored when getting changesets."""
         import os
+
         os.chdir(initialized_changeset_project)
 
         changesets = get_changesets()
