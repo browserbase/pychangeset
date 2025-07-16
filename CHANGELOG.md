@@ -1,5 +1,11 @@
 # changeset
 
+## 0.2.8
+
+### Patch Changes
+
+[#17](https://github.com/the-roaring/pychangeset/pull/17) [`153d168`](https://github.com/the-roaring/pychangeset/commit/153d168) Thanks @the-roaring! - fix dupes
+
 ## 0.2.7
 
 ### Patch Changes
