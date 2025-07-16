@@ -103,7 +103,7 @@ Run `changeset` or `changeset add` to create a new changeset.
 
 ## More info
 
-See https://github.com/browserbase/pychangeset for more information.
+See https://github.com/the-roaring/pychangeset for more information.
 """
 
     with open(readme_path, "w") as f:
