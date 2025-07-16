@@ -23,11 +23,15 @@ def temp_repo(tmp_path: Path) -> Generator[Path]:
     subprocess.run(["git", "init"], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(
         ["git", "config", "user.email", "test@example.com"],
-        cwd=tmp_path, check=True, capture_output=True
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
     )
     subprocess.run(
         ["git", "config", "user.name", "Test User"],
-        cwd=tmp_path, check=True, capture_output=True
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
     )
 
     # Create initial commit
@@ -35,7 +39,9 @@ def temp_repo(tmp_path: Path) -> Generator[Path]:
     subprocess.run(["git", "add", "."], cwd=tmp_path, check=True, capture_output=True)
     subprocess.run(
         ["git", "commit", "-m", "Initial commit"],
-        cwd=tmp_path, check=True, capture_output=True
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
     )
 
     yield tmp_path
@@ -54,6 +60,7 @@ def sample_project(temp_repo: Path) -> Path:
     }
 
     import toml
+
     with open(temp_repo / "pyproject.toml", "w") as f:
         toml.dump(pyproject_content, f)
 
@@ -80,6 +87,7 @@ def multi_package_project(temp_repo: Path) -> Path:
     }
 
     import toml
+
     with open(pkg1_dir / "pyproject.toml", "w") as f:
         toml.dump(pyproject1, f)
 
@@ -114,7 +122,7 @@ def initialized_changeset_project(sample_project: Path) -> Path:
             "major": {"description": "Breaking changes", "emoji": "💥"},
             "minor": {"description": "New features", "emoji": "✨"},
             "patch": {"description": "Bug fixes and improvements", "emoji": "🐛"},
-        }
+        },
     }
 
     with open(changeset_dir / "config.json", "w") as f:

@@ -679,12 +679,14 @@ def version(dry_run: bool, skip_changelog: bool):
         if package not in package_changes:
             package_changes[package] = {"changes": [], "descriptions": []}
         package_changes[package]["changes"].append(change_type)
-        package_changes[package]["descriptions"].append({
-            "type": change_type,
-            "description": desc,
-            "changeset": filepath.name,
-            "filepath": filepath
-        })
+        package_changes[package]["descriptions"].append(
+            {
+                "type": change_type,
+                "description": desc,
+                "changeset": filepath.name,
+                "filepath": filepath,
+            }
+        )
 
     # Show changesets
     total_changesets = sum(len(info["changes"]) for info in package_changes.values())

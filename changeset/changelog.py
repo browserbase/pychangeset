@@ -114,7 +114,6 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
             commit_hash = result.stdout.strip().split("\n")[0]
             metadata["commit_hash"] = commit_hash
 
-
             # Get the commit message to extract PR number and co-authors
             msg_result = subprocess.run(
                 ["git", "log", "-1", "--format=%B", commit_hash],
@@ -136,8 +135,8 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                 # Try to get PR author using GitHub CLI if available
                 try:
                     # Check if we're in GitHub Actions and have a token
-                    gh_token = (
-                        os.environ.get('GITHUB_TOKEN') or os.environ.get('GH_TOKEN')
+                    gh_token = os.environ.get("GITHUB_TOKEN") or os.environ.get(
+                        "GH_TOKEN"
                     )
 
                     cmd = [
@@ -151,7 +150,7 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
 
                     env = os.environ.copy()
                     if gh_token:
-                        env['GH_TOKEN'] = gh_token
+                        env["GH_TOKEN"] = gh_token
 
                     gh_result = subprocess.run(
                         cmd,
@@ -187,22 +186,23 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                         )
                         if commits_result.stdout.strip():
                             import json
+
                             commits_data = json.loads(commits_result.stdout)
 
                             # Build a map of GitHub usernames to their info
                             github_users = {}
                             for commit in commits_data:
-                                author = commit.get('author')
-                                if author and author.get('login'):
-                                    username = author['login']
+                                author = commit.get("author")
+                                if author and author.get("login"):
+                                    username = author["login"]
                                     pr_author = metadata.get("pr_author")
                                     if username and username != pr_author:
-                                        commit_data = commit.get('commit', {})
-                                        commit_author = commit_data.get('author', {})
+                                        commit_data = commit.get("commit", {})
+                                        commit_author = commit_data.get("author", {})
                                         github_users[username] = {
-                                            'login': username,
-                                            'name': commit_author.get('name', ''),
-                                            'email': commit_author.get('email', '')
+                                            "login": username,
+                                            "name": commit_author.get("name", ""),
+                                            "email": commit_author.get("email", ""),
                                         }
 
                             if github_users:
@@ -241,21 +241,17 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
 
             # Extract co-authors from commit message
             co_authors_from_commits = []
-            for line in commit_msg.split('\n'):
+            for line in commit_msg.split("\n"):
                 co_author_match = re.match(
-                    r'^Co-authored-by:\s*(.+?)\s*<(.+?)>$', line.strip()
+                    r"^Co-authored-by:\s*(.+?)\s*<(.+?)>$", line.strip()
                 )
                 if co_author_match:
                     co_author_name = co_author_match.group(1).strip()
                     co_author_email = co_author_match.group(2).strip()
-                    if (
-                        co_author_name
-                        and co_author_name != metadata.get("pr_author")
-                    ):
-                        co_authors_from_commits.append({
-                            'name': co_author_name,
-                            'email': co_author_email
-                        })
+                    if co_author_name and co_author_name != metadata.get("pr_author"):
+                        co_authors_from_commits.append(
+                            {"name": co_author_name, "email": co_author_email}
+                        )
 
             # Deduplicate co-authors using GitHub user info
             if "co_authors" in metadata and metadata.get("github_user_info"):
@@ -272,23 +268,23 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                     is_duplicate = False
                     for username, user_info in github_users.items():
                         # Check by email (most reliable)
-                        if commit_author['email'] == user_info.get('email', ''):
+                        if commit_author["email"] == user_info.get("email", ""):
                             is_duplicate = True
                             break
                         # Check by name
-                        if commit_author['name'] == user_info.get('name', ''):
+                        if commit_author["name"] == user_info.get("name", ""):
                             is_duplicate = True
                             break
 
                     if not is_duplicate:
                         # This is a unique co-author not in GitHub commits
-                        final_co_authors.append((commit_author['name'], False))
+                        final_co_authors.append((commit_author["name"], False))
 
                 metadata["co_authors"] = final_co_authors
             elif co_authors_from_commits:
                 # No GitHub API data - just use commit co-authors
                 metadata["co_authors"] = [
-                    (author['name'], False) for author in co_authors_from_commits
+                    (author["name"], False) for author in co_authors_from_commits
                 ]
 
     except subprocess.CalledProcessError:
