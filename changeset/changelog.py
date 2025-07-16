@@ -167,6 +167,37 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                             f"{metadata['pr_author']}"
                         )
 
+                    # Also try to get PR author's full info for better deduplication
+                    pr_author_info = {}
+                    if metadata.get("pr_author") and metadata.get(
+                        "pr_author_is_username"
+                    ):
+                        try:
+                            cmd = [
+                                "gh",
+                                "api",
+                                f"users/{metadata['pr_author']}",
+                            ]
+                            user_result = subprocess.run(
+                                cmd,
+                                capture_output=True,
+                                text=True,
+                                check=True,
+                                env=env,
+                            )
+                            if user_result.stdout.strip():
+                                import json
+
+                                user_data = json.loads(user_result.stdout)
+                                pr_author_info = {
+                                    "login": metadata["pr_author"],
+                                    "name": user_data.get("name", ""),
+                                    "email": user_data.get("email", ""),
+                                }
+                                metadata["pr_author_info"] = pr_author_info
+                        except Exception:
+                            pass
+
                     # Also try to get co-authors from PR commits
                     try:
                         # Get all commits in the PR with full author info
@@ -185,8 +216,6 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                             env=env,
                         )
                         if commits_result.stdout.strip():
-                            import json
-
                             commits_data = json.loads(commits_result.stdout)
 
                             # Build a map of GitHub usernames to their info
@@ -241,6 +270,8 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
 
             # Extract co-authors from commit message
             co_authors_from_commits = []
+            pr_author_info = metadata.get("pr_author_info", {})
+
             for line in commit_msg.split("\n"):
                 co_author_match = re.match(
                     r"^Co-authored-by:\s*(.+?)\s*<(.+?)>$", line.strip()
@@ -248,7 +279,25 @@ def get_changeset_metadata(changeset_path: Path) -> dict:
                 if co_author_match:
                     co_author_name = co_author_match.group(1).strip()
                     co_author_email = co_author_match.group(2).strip()
-                    if co_author_name and co_author_name != metadata.get("pr_author"):
+
+                    # Check if this co-author is actually the PR author
+                    is_pr_author = False
+
+                    # Direct username match
+                    if co_author_name == metadata.get("pr_author"):
+                        is_pr_author = True
+                    # Check by email
+                    elif pr_author_info and co_author_email == pr_author_info.get(
+                        "email", ""
+                    ):
+                        is_pr_author = True
+                    # Check by name
+                    elif pr_author_info and co_author_name == pr_author_info.get(
+                        "name", ""
+                    ):
+                        is_pr_author = True
+
+                    if co_author_name and not is_pr_author:
                         co_authors_from_commits.append(
                             {"name": co_author_name, "email": co_author_email}
                         )
